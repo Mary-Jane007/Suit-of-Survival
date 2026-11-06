@@ -4,7 +4,7 @@ Suit of Survival is a dark, original card night. This branch has the Next.js she
 
 The deck is loaded by `supabase/migrations/20261106200100_phase3_content.sql`, which `scripts/phase3-content.mjs` generates. Each row is marked `export` or `proposal`. Export lines that fail [SAFETY.md](SAFETY.md) stay stored and unpublished. The 2 of Diamonds cipher stays out of play with an empty secret. No solution is invented for it.
 
-The lobby still does not deal a card, score a round, or run a phone and board. That is a later phase.
+A live room deals published, in-play cards and scores them on the server. The shared screen and phone controllers are a later phase. Collections are a later phase.
 
 ## Run the app
 
@@ -70,7 +70,7 @@ With `npx supabase db reset` or `npx supabase db push`, plus keys in `.env.local
 - Edit a card's prompt, rounds, timer, question, hints, scoring, representative, draft or publish, and the hidden answer.
 - Edit representative dialogue for Sable Voss, Ivo Quill, Noa Veld, Maren Holt, and Tess Calder.
 - Preview announcement screens from the dashboard: card detected, rules, countdown, started, paused, success, and game over.
-- Open a lobby. It still does not deal a card.
+- Open a lobby. Starting the draw, pausing, scoring, and rejoining need the server key.
 
 ## Routes
 
@@ -81,7 +81,7 @@ With `npx supabase db reset` or `npx supabase db push`, plus keys in `.env.local
 | `/library`, `/library/[slug]` | Anyone. Published, in-play cards only. |
 | `/how-to-play` | Anyone |
 | `/auth/sign-in`, `/auth/sign-up` | Anyone |
-| `/play/[code]` | The host, or anyone when the server key is set |
+| `/play/[code]` | The host and joined players. The server key deals and scores. |
 | `/owner` | The owner account only |
 | `/owner/games/new`, `/owner/games/[id]` | Owner. Create and edit games. |
 | `/owner/cards/[id]` | Owner. Hidden answers load here. |
@@ -95,8 +95,19 @@ npm run dev
 npm run build
 npm run lint
 npm run typecheck
+npm run test:engine
 ```
+
+## Play
+
+The host opens a room. A player joins with a display name, or with an account. The same room code returns the same participant row. The host starts, pauses, resumes, and ends. A player can stop. Stopped is not eliminated.
+
+Draws come from published, in-play cards. A dealt card is not drawn again unless the 10 of Hearts assigns it. The length defaults to 8 and follows `rules.draws` when the server can read it. Digital elimination runs only when that game has it turned on, and only for a unique lowest score at the end.
+
+Clients send moves. They do not send scores. If a card has no stored answer, figure, or defined result, the room says so and writes no points.
+
+The play view subscribes to one realtime channel, `session:<id>`. Hidden answers stay in `cards.secret`.
 
 ## Not in this phase
 
-Live multiplayer resolution, scoring a round, and the phone or board play loop are later work. Announcement screens preview a stored row. They do not attach to a session.
+The shared screen and phone controllers are later work. Collections are later work. Announcement previews on the dashboard still do not require a live room.
