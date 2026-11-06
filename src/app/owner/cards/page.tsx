@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Suspense } from "react";
 
 import { DataTable } from "@/components/data-table";
@@ -36,7 +37,7 @@ async function CardsBody() {
       ) : result.rows.length === 0 ? (
         <EmptyState
           title="No cards are stored"
-          body="The cards table is empty. Importing the deck, and marking each row export or proposal, is Phase 3."
+          body="Apply the Phase 3 migration. Export lines that fail the safety rules stay unpublished."
         />
       ) : (
         <DataTable
@@ -45,7 +46,9 @@ async function CardsBody() {
             <span key={`${card.id}-card`} className={suitTone(card.suit)}>
               {suitSymbol(card.suit)} {card.rank} {suitLabel(card.suit)}
             </span>,
-            card.title || "—",
+            <Link key={`${card.id}-title`} href={`/owner/cards/${card.id}`} className="underline">
+              {card.title || "—"}
+            </Link>,
             card.source,
             card.publishable ? "Yes" : "No",
           ])}

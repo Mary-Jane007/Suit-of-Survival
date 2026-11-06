@@ -1,6 +1,9 @@
 export const fieldClass =
   "h-12 w-full border border-line bg-ink px-3 text-paper outline-none placeholder:text-mute focus:border-blood";
 
+export const areaClass =
+  "min-h-28 w-full border border-line bg-ink px-3 py-2 text-sm leading-6 text-paper outline-none focus:border-blood";
+
 export const solidButtonClass =
   "inline-flex h-12 items-center justify-center border border-blood bg-blood px-6 font-display text-sm uppercase tracking-[0.18em] text-paper transition-colors hover:border-blood-bright hover:bg-blood-bright disabled:cursor-wait disabled:opacity-60";
 

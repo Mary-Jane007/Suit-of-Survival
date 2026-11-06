@@ -93,7 +93,7 @@ export async function listRepresentatives(): Promise<QueryRows<RepresentativeRow
 
   const { data, error } = await user.supabase
     .from("representatives")
-    .select("id, name, role, suit, bio")
+    .select("id, name, role, suit, bio, portrait_url")
     .order("name", { ascending: true });
 
   if (error) {
@@ -184,7 +184,7 @@ export async function ownerCounts(): Promise<
     { label: "Players", href: "/owner/players", table: "profiles" },
     { label: "Sessions", href: "/owner/sessions", table: "sessions" },
     { label: "Collections", href: null, table: "collections" },
-    { label: "Announcements", href: null, table: "announcements" },
+    { label: "Announcements", href: "/owner/announcements", table: "announcements" },
   ] as const;
 
   const items = await Promise.all(

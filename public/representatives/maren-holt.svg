@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 200" fill="none">
+  <rect width="160" height="200" fill="#070708"/>
+  <rect x="10" y="10" width="140" height="180" stroke="#f4f1ea"/>
+  <circle cx="80" cy="78" r="16" stroke="#f4f1ea"/>
+  <circle cx="58" cy="108" r="14" stroke="#f4f1ea"/>
+  <circle cx="102" cy="108" r="14" stroke="#f4f1ea"/>
+  <text x="80" y="176" text-anchor="middle" fill="#f4f1ea" font-family="Arial Narrow, sans-serif" font-size="14" letter-spacing="3">MH</text>
+</svg>

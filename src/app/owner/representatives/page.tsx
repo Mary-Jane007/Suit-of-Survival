@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Suspense } from "react";
 
 import { DataTable } from "@/components/data-table";
@@ -27,7 +28,7 @@ async function RepresentativesBody() {
     <OwnerPage
       kicker="Representatives"
       title="REPRESENTATIVES"
-      lede="Original cast only. No show names, voices, or likenesses. This phase does not invent a cast."
+      lede="Original cast. Portraits are geometric marks made for this game. Dialogue is editable on each row."
     >
       {"unconfigured" in result ? (
         <SetupNotice />
@@ -36,13 +37,15 @@ async function RepresentativesBody() {
       ) : result.rows.length === 0 ? (
         <EmptyState
           title="No representatives are stored"
-          body="The table is empty. Portraits, when they exist, have to be art made for this game."
+          body="Apply the Phase 3 migration to load Sable Voss, Ivo Quill, Noa Veld, Maren Holt, and Tess Calder."
         />
       ) : (
         <DataTable
           columns={["Name", "Role", "Suit", "Bio"]}
           rows={result.rows.map((person) => [
-            person.name,
+            <Link key={person.id} href={`/owner/representatives/${person.id}`} className="underline">
+              {person.name}
+            </Link>,
             person.role.replaceAll("_", " "),
             suitLabel(person.suit),
             person.bio || "—",

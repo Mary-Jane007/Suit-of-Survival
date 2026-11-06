@@ -1,8 +1,10 @@
 # Suit of Survival
 
-Phase 2 foundation for a dark, original card night. This branch has the Next.js shell, the Supabase schema, email auth, guest join, an owner dashboard, and a lobby. It does not deal a challenge, run multiplayer play, or start real-life mode.
+Suit of Survival is a dark, original card night. This branch has the Next.js shell, email auth, guest join, an owner dashboard, a lobby, and the Phase 3 library: games, cards, representatives, and announcements stored as rows.
 
-Card text stays out of the database until Phase 3. Rules for that import are in [SAFETY.md](SAFETY.md).
+The deck is loaded by `supabase/migrations/20261106200100_phase3_content.sql`, which `scripts/phase3-content.mjs` generates. Each row is marked `export` or `proposal`. Export lines that fail [SAFETY.md](SAFETY.md) stay stored and unpublished. The 2 of Diamonds cipher stays out of play with an empty secret. No solution is invented for it.
+
+The lobby still does not deal a card, score a round, or run a phone and board. That is a later phase.
 
 ## Run the app
 
@@ -32,7 +34,7 @@ npx supabase db reset
 npx supabase status
 ```
 
-`npx supabase db reset` applies `supabase/migrations` and the empty `supabase/seed.sql`. Email confirmation is off in `supabase/config.toml`, so the first local signup can sign in immediately.
+`npx supabase db reset` applies `supabase/migrations`, including the Phase 3 deck, then the comment-only `supabase/seed.sql`. Email confirmation is off in `supabase/config.toml`, so the first local signup can sign in immediately.
 
 From `npx supabase status`, copy:
 
@@ -56,13 +58,19 @@ Hosted projects often require email confirmation. Sign up, open the link in the 
 
 Guest join writes a participant with `user_id` null, so it needs the secret or service_role key on the server. Without that key, a signed-in host can still open a room. A guest sees a configuration message instead of a seat.
 
-## What you can do in this phase
+## What you can do
+
+Without a live Supabase project, the app builds and the landing page, How to play, the library shell, and the owner shell render. Forms submit a configuration message. No rows can be read or written.
+
+With `npx supabase db reset` or `npx supabase db push`, plus keys in `.env.local` and the first account signed in as owner:
 
 - Land on SUIT OF SURVIVAL / THE GAME HAS BEGUN and open Enter, the library, and How to play.
-- Create an account. The first profile is the only owner.
-- Open the owner dashboard. Empty states are counts and lists from the database.
-- Sign in and open a room. Share the code. A guest joins with a display name and no account.
-- See the lobby. Refresh it to see a new name. No card is dealt.
+- Open a published game and read the shippable cards. Hidden answers are not in that response.
+- Edit a game, duplicate it, delete it by typing the slug, and add a proposal card.
+- Edit a card's prompt, rounds, timer, question, hints, scoring, representative, draft or publish, and the hidden answer.
+- Edit representative dialogue for Sable Voss, Ivo Quill, Noa Veld, Maren Holt, and Tess Calder.
+- Preview announcement screens from the dashboard: card detected, rules, countdown, started, paused, success, and game over.
+- Open a lobby. It still does not deal a card.
 
 ## Routes
 
@@ -70,11 +78,15 @@ Guest join writes a participant with `user_id` null, so it needs the secret or s
 | --- | --- |
 | `/` | Anyone |
 | `/enter` | Anyone. Join needs the server key. Opening a room needs a signed-in account. |
-| `/library` | Anyone. Published games only. |
+| `/library`, `/library/[slug]` | Anyone. Published, in-play cards only. |
 | `/how-to-play` | Anyone |
 | `/auth/sign-in`, `/auth/sign-up` | Anyone |
 | `/play/[code]` | The host, or anyone when the server key is set |
 | `/owner` | The owner account only |
+| `/owner/games/new`, `/owner/games/[id]` | Owner. Create and edit games. |
+| `/owner/cards/[id]` | Owner. Hidden answers load here. |
+| `/owner/representatives/[id]` | Owner |
+| `/owner/announcements`, `/owner/announcements/[slug]` | Owner. Preview, no live room. |
 
 ## Scripts
 
@@ -87,4 +99,4 @@ npm run typecheck
 
 ## Not in this phase
 
-Phase 3 is the card import, owner editing, and one published card. Phase 4 is multiplayer play. Phase 5 is the shared screen and phones. Do not seed the 52 cards here.
+Live multiplayer resolution, scoring a round, and the phone or board play loop are later work. Announcement screens preview a stored row. They do not attach to a session.
