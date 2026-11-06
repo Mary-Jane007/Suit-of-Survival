@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 
-import { CreateRoomForm, JoinForm } from "@/components/forms";
+import { CreateRoomForm, CreateTableForm, JoinForm } from "@/components/forms";
 import { SetupNotice } from "@/components/setup-notice";
 import { ghostButtonClass } from "@/components/ui";
 import { getVerifiedUser } from "@/lib/auth";
@@ -49,6 +49,7 @@ async function EnterBody() {
               Signed in as {user.profile.display_name}. This account is the {user.profile.role}.
             </p>
             <CreateRoomForm />
+            <CreateTableForm />
           </>
         ) : (
           <>

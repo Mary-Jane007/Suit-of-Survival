@@ -1,6 +1,6 @@
 "use server";
 
-import { advancePlay, setPlayStatus, startPlay, stopPlaying, submitMove } from "@/lib/play/service";
+import { advancePlay, restartTable, revealCard, setPlayStatus, shiftTimer, skipCard, startPlay, stopPlaying, submitMove } from "@/lib/play/service";
 import type { ActionState } from "@/lib/types";
 
 async function run(work: () => Promise<{ error?: string; ok?: boolean }>): Promise<ActionState> {
@@ -37,6 +37,30 @@ export async function advanceRoom(_prev: ActionState, formData: FormData): Promi
 
 export async function stopRoom(_prev: ActionState, formData: FormData): Promise<ActionState> {
   return run(() => stopPlaying(String(formData.get("room") ?? "")));
+}
+
+export async function extendTimer(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return run(() => shiftTimer(String(formData.get("room") ?? ""), 30_000));
+}
+
+export async function shortenTimer(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return run(() => shiftTimer(String(formData.get("room") ?? ""), -15_000));
+}
+
+export async function skipRoom(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return run(() => skipCard(String(formData.get("room") ?? "")));
+}
+
+export async function revealHint(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return run(() => revealCard(String(formData.get("room") ?? ""), "hint"));
+}
+
+export async function revealAnswer(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return run(() => revealCard(String(formData.get("room") ?? ""), "answer"));
+}
+
+export async function restartRoom(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return run(() => restartTable(String(formData.get("room") ?? "")));
 }
 
 export async function answerRoom(_prev: ActionState, formData: FormData): Promise<ActionState> {

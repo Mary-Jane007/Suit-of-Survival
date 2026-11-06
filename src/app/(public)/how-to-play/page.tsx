@@ -24,8 +24,8 @@ export default function HowToPlayPage() {
           dashboard is where games, cards, and announcements are published.
         </p>
         <p>
-          Published cards are in the game library. The host starts a room, and the server deals and
-          scores. This version does not run a shared screen or a phone controller.
+          Published cards are in the game library. An online room deals from the server. A table
+          uses the same room code: the board is a display, and phones are the controllers.
         </p>
       </div>
       <div className="frame px-6 py-6">

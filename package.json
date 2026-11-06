@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test:engine": "node --experimental-strip-types --test src/lib/engine/play.test.ts"
+    "test:engine": "node --experimental-strip-types --test src/lib/engine/play.test.ts src/lib/engine/table.test.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
