@@ -157,7 +157,7 @@ export async function createRoom(prev: ActionState, formData: FormData): Promise
         mode: "online",
         status: "lobby",
         host_user_id: user.userId,
-        settings_snapshot: { deals_cards: false },
+        settings_snapshot: { draw_limit: 8, digital_elimination: false, deals_cards: true },
       })
       .select("id, room_code")
       .single();
@@ -230,15 +230,67 @@ export async function joinRoom(_prev: ActionState, formData: FormData): Promise<
   if (!session) {
     return { error: "No room uses that code." };
   }
-  if (session.status !== "lobby") {
-    return { error: "That room is not open for joining." };
+  if (session.status === "ended") {
+    return { error: "That room has ended." };
+  }
+
+  const user = await getVerifiedUser();
+  const cookieStore = await cookies();
+  const existingCookie = cookieStore.get("sos_participant")?.value;
+
+  if (user) {
+    const { data: seated } = await admin
+      .from("participants")
+      .select("id")
+      .eq("session_id", session.id)
+      .eq("user_id", user.userId)
+      .maybeSingle();
+    if (seated?.id) {
+      cookieStore.set("sos_participant", seated.id, {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+        maxAge: 60 * 60 * 12,
+      });
+      redirect(`/play/${session.room_code}`);
+    }
+  }
+
+  if (existingCookie) {
+    const { data: seated } = await admin
+      .from("participants")
+      .select("id")
+      .eq("id", existingCookie)
+      .eq("session_id", session.id)
+      .maybeSingle();
+    if (seated?.id) {
+      redirect(`/play/${session.room_code}`);
+    }
+  }
+
+  const { data: named } = await admin
+    .from("participants")
+    .select("id")
+    .eq("session_id", session.id)
+    .is("user_id", null)
+    .eq("display_name", displayName);
+  if (!user && named?.length === 1 && named[0]?.id) {
+    cookieStore.set("sos_participant", named[0].id, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: 60 * 60 * 12,
+    });
+    redirect(`/play/${session.room_code}`);
   }
 
   const { data: participant, error: insertError } = await admin
     .from("participants")
     .insert({
       session_id: session.id,
-      user_id: null,
+      user_id: user?.userId ?? null,
       display_name: displayName,
       role: "player",
       status: "active",
@@ -250,7 +302,6 @@ export async function joinRoom(_prev: ActionState, formData: FormData): Promise<
     return { error: insertError?.message ?? "The room did not accept the join." };
   }
 
-  const cookieStore = await cookies();
   cookieStore.set("sos_participant", participant.id, {
     httpOnly: true,
     sameSite: "lax",

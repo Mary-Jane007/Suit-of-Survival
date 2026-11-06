@@ -120,7 +120,7 @@ export function CreateRoomForm() {
   return (
     <form action={action} className="flex flex-col items-start gap-4">
       <p className="max-w-md text-sm text-mute">
-        Opens an online lobby and a six-character code. No card is dealt.
+        Opens an online room and a six-character code. The host starts the draw from the lobby.
       </p>
       <Feedback state={state} />
       <SubmitButton pendingLabel="Opening">Open a room</SubmitButton>

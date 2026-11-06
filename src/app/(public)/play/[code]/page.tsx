@@ -9,6 +9,8 @@ import { ghostButtonClass } from "@/components/ui";
 import { getVerifiedUser } from "@/lib/auth";
 import { formatWhen, titleCase } from "@/lib/format";
 import { getLobby } from "@/lib/lobby";
+import { readPlay } from "@/lib/play/service";
+import { PlayRoom } from "@/components/play-room";
 
 export const metadata: Metadata = {
   title: "Lobby",
@@ -24,6 +26,31 @@ export default function PlayPage({ params }: { params: Promise<{ code: string }>
 
 async function LobbyBody({ params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
+  const play = await readPlay(code);
+  if (play.kind === "ready") {
+    return <PlayRoom view={play.view} />;
+  }
+  if (play.kind === "invalid") {
+    return (
+      <main className="px-4 py-14 sm:px-8">
+        <EmptyState title="That is not a room code" body="Room codes are six letters or digits, without I, O, 0, or 1." />
+      </main>
+    );
+  }
+  if (play.kind === "missing") {
+    return (
+      <main className="px-4 py-14 sm:px-8">
+        <EmptyState title="No room uses that code" body="Check the code with the person who opened the room." />
+      </main>
+    );
+  }
+  if (play.kind === "error") {
+    return (
+      <main className="px-4 py-14 sm:px-8">
+        <QueryError message={play.message} />
+      </main>
+    );
+  }
   const result = await getLobby(code);
 
   if (result.kind === "unconfigured") {
@@ -96,8 +123,8 @@ async function LobbyBody({ params }: { params: Promise<{ code: string }> }) {
         </p>
         <h1 className="mt-3 font-display text-6xl tracking-[0.22em]">{lobby.room_code}</h1>
         <p className="mt-4 text-sm leading-6 text-mute">
-          Opened {formatWhen(lobby.created_at)}. No challenge is dealt in this phase. The room
-          stays a lobby.
+          Opened {formatWhen(lobby.created_at)}. Dealing a card needs the server key. Until then
+          the room stays a lobby.
         </p>
       </div>
       <section className="frame px-6 py-6">
