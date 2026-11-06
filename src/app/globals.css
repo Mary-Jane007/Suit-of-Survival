@@ -1,0 +1,104 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-ink: #070708;
+  --color-charcoal: #101012;
+  --color-panel: #16161a;
+  --color-line: #2c2c32;
+  --color-blood: #8f1d2c;
+  --color-blood-bright: #c4233a;
+  --color-paper: #f4f1ea;
+  --color-mute: #9a9aa3;
+  --font-sans: var(--font-barlow), "Arial Narrow", sans-serif;
+  --font-display: var(--font-oswald), "Arial Narrow", sans-serif;
+}
+
+html {
+  height: 100%;
+}
+
+body {
+  min-height: 100%;
+  background-color: var(--color-ink);
+  background-image:
+    radial-gradient(ellipse 70% 45% at 50% -10%, rgba(143, 29, 44, 0.28), transparent 60%),
+    linear-gradient(#070708, #070708);
+  color: var(--color-paper);
+}
+
+::selection {
+  background: #8f1d2c;
+  color: #f4f1ea;
+}
+
+:focus-visible {
+  outline: 1px solid #c4233a;
+  outline-offset: 3px;
+}
+
+.frame {
+  position: relative;
+  border: 1px solid var(--color-line);
+  background: rgba(7, 7, 8, 0.72);
+}
+
+.frame::before,
+.frame::after {
+  content: "";
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-color: var(--color-blood);
+  border-style: solid;
+  pointer-events: none;
+}
+
+.frame::before {
+  top: -1px;
+  left: -1px;
+  border-width: 1px 0 0 1px;
+}
+
+.frame::after {
+  right: -1px;
+  bottom: -1px;
+  border-width: 0 1px 1px 0;
+}
+
+@keyframes suit-drift {
+  0%,
+  100% {
+    opacity: 0.14;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 0.42;
+    transform: translateY(-8px);
+  }
+}
+
+.suit-drift {
+  animation: suit-drift 8s ease-in-out infinite;
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.rise-in {
+  animation: rise-in 700ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .suit-drift,
+  .rise-in {
+    animation: none;
+  }
+}

@@ -1,0 +1,41 @@
+# Local Supabase project for Suit of Survival.
+# Apply it with Docker running:
+#   npx supabase start
+#   npx supabase db reset
+# Hosted projects ignore this file until you link and push.
+# https://supabase.com/docs/guides/local-development/cli/config
+
+project_id = "suit-of-survival"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[realtime]
+enabled = true
+
+[studio]
+enabled = true
+port = 54323
+
+[auth]
+enabled = true
+site_url = "http://127.0.0.1:3000"
+additional_redirect_urls = ["http://127.0.0.1:3000", "http://localhost:3000"]
+jwt_expiry = 3600
+enable_signup = true
+enable_anonymous_sign_ins = false
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = false
+max_frequency = "1s"
