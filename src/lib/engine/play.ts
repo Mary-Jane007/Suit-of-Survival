@@ -91,6 +91,14 @@ export function sanitizeMove(value: unknown): Record<string, unknown> {
   return payload;
 }
 
+export function voteChoice(value: unknown) {
+  return sanitizeMove(value);
+}
+
+export function isPlayerFacing(card: { publishable?: boolean; effect: Record<string, unknown> }) {
+  return card.publishable === true && card.effect.in_play !== false;
+}
+
 export function scoringNumber(effect: Record<string, unknown>, key: string) {
   const scoring = asObject(effect.scoring);
   const value = scoring[key];
@@ -140,7 +148,16 @@ function done(
 }
 
 function moveFor(moves: Move[], participantId: string) {
-  return [...moves].reverse().find((move) => move.participantId === participantId);
+  let chosen: Move | undefined;
+  for (const move of moves) {
+    if (move.participantId !== participantId) {
+      continue;
+    }
+    if (!chosen || (move.at ?? 0) >= (chosen.at ?? 0)) {
+      chosen = move;
+    }
+  }
+  return chosen;
 }
 
 function kindOf(card: CardFace) {
@@ -218,6 +235,14 @@ export function digitalElimination(players: { id: string; status: string; points
     return [];
   }
   return [tied[0].id];
+}
+
+export function statusAfterElimination<T extends { id: string; status: string; points: number }>(players: T[], enabled: boolean) {
+  const gone = new Set(digitalElimination(players, enabled));
+  return players.map((player) => ({
+    ...player,
+    status: gone.has(player.id) ? "eliminated" : player.status,
+  }));
 }
 
 export function applyPending(pending: Pending[], deltas: Delta[], actorIds: string[]) {
@@ -937,62 +962,87 @@ function physical(card: CardFace, context: RoundContext): Outcome {
 }
 
 export function resolveCard(card: CardFace, context: RoundContext, poolIds: string[] = []): Outcome {
+  const stopped = context.actors.filter((seat) => seat.status === "stopped");
+  if (stopped.length > 0 && kindOf(card) === "role_pick") {
+    return done(
+      "A player stopped. This card scores 0 for everyone.",
+      context.actors.map((seat) => ({
+        participantId: seat.id,
+        points: scoringNumber(card.effect, "stop") ?? 0,
+        reason: "stop",
+      })),
+      context.phone,
+      context.hands,
+    );
+  }
+  const playing =
+    stopped.length > 0
+      ? { ...context, actors: context.actors.filter((seat) => seat.status !== "stopped") }
+      : context;
+  if (context.actors.length > 0 && playing.actors.length === 0) {
+    return done(
+      "A player stopped.",
+      stopped.map((seat) => ({ participantId: seat.id, points: 0, reason: "stop" })),
+      context.phone,
+      context.hands,
+    );
+  }
   const kind = kindOf(card);
   if (kind === "puzzle") {
-    return puzzle(card, context);
+    return puzzle(card, playing);
   }
   if (kind === "door_pattern") {
-    return door(card, context);
+    return door(card, playing);
   }
   if (kind === "number_target") {
-    return numberTarget(context);
+    return numberTarget(playing);
   }
   if (kind === "point_gift") {
-    return pointGift(card, context);
+    return pointGift(card, playing);
   }
   if (kind === "transfer") {
-    return transfer(card, context);
+    return transfer(card, playing);
   }
   if (kind === "trust") {
-    return trust(card, context);
+    return trust(card, playing);
   }
   if (kind === "prediction") {
-    return prediction(card, context);
+    return prediction(card, playing);
   }
   if (kind === "alliance") {
-    return alliance(card, context);
+    return alliance(card, playing);
   }
   if (kind === "role_pick") {
-    return rolePick(card, context);
+    return rolePick(card, playing);
   }
   if (kind === "secret_mark") {
-    return secretMark(card, context);
+    return secretMark(card, playing);
   }
   if (kind === "bluff") {
-    return bluff(card, context);
+    return bluff(card, playing);
   }
   if (kind === "trade") {
-    return trade(card, context);
+    return trade(card, playing);
   }
   if (kind === "pass_around") {
-    return passAround(card, context);
+    return passAround(card, playing);
   }
   if (kind === "forehead") {
-    return forehead(card, context);
+    return forehead(card, playing);
   }
   if (kind === "assigned_replay") {
-    return assignedReplay(card, context, poolIds);
+    return assignedReplay(card, playing, poolIds);
   }
   if (kind === "fiction_guess") {
-    return fiction(card, context);
+    return fiction(card, playing);
   }
   if (kind === "teamwork") {
-    return teamwork(card, context);
+    return teamwork(card, playing);
   }
   if (kind === "physical_or_phone") {
-    return physical(card, context);
+    return physical(card, playing);
   }
-  return unresolved("This card has no resolver. No score is written.", context.phone, context.hands);
+  return unresolved("This card has no resolver. No score is written.", playing.phone, playing.hands);
 }
 
 export type PublicPlay = {
@@ -1105,15 +1155,23 @@ export function publicPlay(card: CardFace, youId: string | null, actors: Seat[])
 }
 
 export function dealHands(cardIds: string[], seatIds: string[], size: number, rng: () => number = Math.random) {
+  const bag = [...cardIds];
   const hands: Record<string, string[]> = {};
   for (const seatId of seatIds) {
-    const bag = [...cardIds];
-    const hand: string[] = [];
-    while (hand.length < size && bag.length > 0) {
-      const index = Math.min(bag.length - 1, Math.floor(rng() * bag.length));
-      hand.push(bag.splice(index, 1)[0]);
+    hands[seatId] = [];
+  }
+  let cursor = 0;
+  while (bag.length > 0 && seatIds.some((seatId) => hands[seatId].length < size)) {
+    const seatId = seatIds[cursor % seatIds.length];
+    cursor += 1;
+    if (hands[seatId].length >= size) {
+      continue;
     }
-    hands[seatId] = hand;
+    const index = Math.min(bag.length - 1, Math.floor(rng() * bag.length));
+    const drawn = bag.splice(index, 1)[0];
+    if (drawn) {
+      hands[seatId].push(drawn);
+    }
   }
   return hands;
 }
