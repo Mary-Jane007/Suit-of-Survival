@@ -27,7 +27,9 @@ export async function AccountSlot() {
 
   return (
     <div className="flex items-center gap-4 text-xs uppercase tracking-[0.16em]">
-      <span className="text-mute">{name}</span>
+      <Link href="/profile" className="text-mute hover:text-paper">
+        {name}
+      </Link>
       {owner ? (
         <Link href="/owner" className="text-blood-bright">
           Owner
