@@ -183,7 +183,7 @@ export async function ownerCounts(): Promise<
     { label: "Representatives", href: "/owner/representatives", table: "representatives" },
     { label: "Players", href: "/owner/players", table: "profiles" },
     { label: "Sessions", href: "/owner/sessions", table: "sessions" },
-    { label: "Collections", href: null, table: "collections" },
+    { label: "Collections", href: "/owner/collections", table: "collections" },
     { label: "Announcements", href: "/owner/announcements", table: "announcements" },
   ] as const;
 

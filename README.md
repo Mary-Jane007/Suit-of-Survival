@@ -129,6 +129,14 @@ Copy the URL and keys into `.env.local` from `npx supabase status`. Do not inven
 
 This environment has no Supabase project. `npm run test:engine` is the proof that a board plus two phones finish a published puzzle, a client score is ignored, the answer stays off the phone, a skip writes no points, and the timer moves only by the server clock.
 
+## Progression
+
+Four collections are stored in `collections`: Diamond Mind, Heart Read, Club Line, and Spade Step. They start off. A clear is a stored point change on one card at or above the row's `clear_minimum`. The row's `clears_required` completes that suit. The owner edits those numbers and turns a collection on or off at `/owner/collections`. `/profile` reads the published rule back from the database.
+
+An account profile also lists cleared cards, past sessions, and victories. A victory is the sole highest stored score when a session ends. Rankings use `scores.points`. A guest still plays without an account and can see the current session's stored scores on `/profile`.
+
+Apply `supabase/migrations/20261106230000_phase6_collections.sql` with the rest of the migrations.
+
 ## Not in this phase
 
-Collections are later work. Announcement previews on the dashboard still do not require a live room.
+A broad test and polish pass is later work. Announcement previews on the dashboard still do not require a live room.

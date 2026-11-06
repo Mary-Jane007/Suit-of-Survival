@@ -236,3 +236,36 @@ export async function getPublishedGame(slug: string) {
 
   return { ok: true as const, game: data, cards: visible };
 }
+
+export async function listCollections() {
+  await connection();
+  const db = await ownerDb();
+  if (!db.ok) {
+    return db;
+  }
+  const { data, error } = await db.supabase.from("collections").select("id, title, description, rules, published, updated_at").order("title");
+  if (error) {
+    return { ok: false as const, message: error.message };
+  }
+  return { ok: true as const, rows: data ?? [] };
+}
+
+export async function getCollection(id: string) {
+  await connection();
+  const db = await ownerDb();
+  if (!db.ok) {
+    return db;
+  }
+  const { data, error } = await db.supabase
+    .from("collections")
+    .select("id, title, description, rules, published, updated_at")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) {
+    return { ok: false as const, message: error.message };
+  }
+  if (!data) {
+    return { ok: false as const, missing: true as const };
+  }
+  return { ok: true as const, row: data };
+}

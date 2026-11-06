@@ -36,6 +36,7 @@ import {
   shiftDeadline,
   type Audience,
 } from "@/lib/engine/table";
+import { appendChange, readHistory } from "@/lib/progression";
 import { cleanRoomCode } from "@/lib/validate";
 
 type Admin = NonNullable<ReturnType<typeof createAdminClient>>;
@@ -319,11 +320,29 @@ async function announcement(admin: Admin, gameId: string | null, trigger: string
   return body.replaceAll("[Name]", name).replaceAll("[Card title]", title);
 }
 
-async function addDeltas(admin: Admin, sessionId: string, cardId: string, deltas: { participantId: string; points: number; reason: string }[]) {
+async function addDeltas(
+  admin: Admin,
+  sessionId: string,
+  cardId: string,
+  draw: number,
+  deltas: { participantId: string; points: number; reason: string }[],
+) {
   if (deltas.length === 0) {
     return;
   }
-  const current = await pointsOf(admin, sessionId);
+  const { data, error: readError } = await admin
+    .from("scores")
+    .select("participant_id, points, result")
+    .eq("session_id", sessionId);
+  if (readError) {
+    throw new Error(readError.message);
+  }
+  const current = new Map<string, { points: number; result: unknown }>();
+  for (const row of data ?? []) {
+    if (typeof row.participant_id === "string" && typeof row.points === "number") {
+      current.set(row.participant_id, { points: row.points, result: row.result });
+    }
+  }
   const grouped = new Map<string, { points: number; reason: string }>();
   for (const delta of deltas) {
     const previous = grouped.get(delta.participantId);
@@ -333,13 +352,20 @@ async function addDeltas(admin: Admin, sessionId: string, cardId: string, deltas
     });
   }
   for (const [participantId, delta] of grouped) {
-    const points = (current.get(participantId) ?? 0) + delta.points;
+    const previous = current.get(participantId);
+    const points = (previous?.points ?? 0) + delta.points;
+    const history = appendChange(readHistory(previous?.result), {
+      card_id: cardId,
+      draw,
+      points: delta.points,
+      reason: delta.reason,
+    });
     const { error } = await admin.from("scores").upsert(
       {
         session_id: sessionId,
         participant_id: participantId,
         points,
-        result: { card_id: cardId, reason: delta.reason },
+        result: { card_id: cardId, reason: delta.reason, history },
       },
       { onConflict: "session_id,participant_id" },
     );
@@ -449,7 +475,7 @@ async function closeCard(
     return;
   }
   const deferred = applyPending(settings.pending, outcome.deltas, actorIds);
-  await addDeltas(admin, session.id, card.id, [...outcome.deltas, ...deferred]);
+  await addDeltas(admin, session.id, card.id, settings.draws_done + 1, [...outcome.deltas, ...deferred]);
   settings.hands = outcome.hands;
   settings.phone = outcome.phone;
   settings.pending = outcome.pending;
@@ -536,7 +562,7 @@ async function settle(admin: Admin, session: SessionRow, settings: RoomSettings,
     if (claimed !== true) {
       return "idle";
     }
-    await addDeltas(admin, session.id, face.id, outcome.deltas);
+    await addDeltas(admin, session.id, face.id, settings.draws_done + 1, outcome.deltas);
     settings.inner += 1;
     settings.hands = outcome.hands;
     settings.notice = outcome.message;
