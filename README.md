@@ -137,6 +137,22 @@ An account profile also lists cleared cards, past sessions, and victories. A vic
 
 Apply `supabase/migrations/20261106230000_phase6_collections.sql` with the rest of the migrations.
 
-## Not in this phase
+## Tests
 
-A broad test and polish pass is later work. Announcement previews on the dashboard still do not require a live room.
+`npm run test:engine` covers the server rules without a database: draws, scores, votes, a stop, digital elimination as a status, hand dealing and a trade, hidden answers, unpublished unsafe export lines, the Hearts checks, the 2 of Diamonds cipher, and one board seat plus two phone seats finishing a published puzzle. A client-supplied score is dropped before the result is written.
+
+These still need Supabase, and this environment does not fake them:
+
+```bash
+npx supabase start
+npx supabase db reset
+```
+
+Copy the URL and keys from `npx supabase status` into `.env.local`. Then `npm run dev`.
+
+- Two browsers, including a guest, join one room code and see the same live card.
+- A phone stop writes `participants.status = stopped`, and a turned-on elimination writes `eliminated` only for the unique lowest active score.
+- A Hearts role vote lands in `votes` and is the row the server scores.
+- `library_cards` and a direct card read omit `secret` and the unpublished export lines.
+
+Announcement previews on the dashboard still do not require a live room.

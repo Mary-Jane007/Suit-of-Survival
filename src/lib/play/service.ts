@@ -9,13 +9,15 @@ import {
   assignActors,
   asObject,
   dealHands,
-  digitalElimination,
   emptyPhone,
+  isPlayerFacing,
   pickCard,
   publicEffect,
   publicPlay,
   resolveCard,
   sanitizeMove,
+  statusAfterElimination,
+  voteChoice,
   type CardFace,
   type Move,
   type Pending,
@@ -228,7 +230,7 @@ async function pool(admin: Admin, gameId: string) {
     throw new Error(error.message);
   }
   return (data ?? [])
-    .filter((row) => row.publishable === true && asObject(row.effect).in_play !== false)
+    .filter((row) => isPlayerFacing({ publishable: row.publishable === true, effect: asObject(row.effect) }))
     .map((row) => ({
       id: String(row.id),
       suit: String(row.suit),
@@ -377,14 +379,17 @@ async function addDeltas(
 
 async function finish(admin: Admin, session: SessionRow, settings: RoomSettings, seats: Person[]) {
   const scoreMap = await pointsOf(admin, session.id);
-  const eliminated = digitalElimination(
-    seats.map((seat) => ({ id: seat.id, status: seat.status, points: scoreMap.get(seat.id) ?? 0 })),
-    settings.digital_elimination,
-  );
-  for (const id of eliminated) {
-    await admin.from("participants").update({ status: "eliminated" }).eq("id", id);
+  const before = playingSeats(seats, session.mode).map((seat) => ({
+    id: seat.id,
+    status: seat.status,
+    points: scoreMap.get(seat.id) ?? 0,
+  }));
+  const after = statusAfterElimination(before, settings.digital_elimination);
+  const eliminated = after.filter((seat, index) => seat.status === "eliminated" && before[index]?.status !== "eliminated");
+  for (const seat of eliminated) {
+    await admin.from("participants").update({ status: "eliminated" }).eq("id", seat.id);
   }
-  const name = seats.find((seat) => seat.id === eliminated[0])?.display_name ?? "";
+  const name = seats.find((seat) => seat.id === eliminated[0]?.id)?.display_name ?? "";
   settings.notice = eliminated.length
     ? await announcement(admin, session.game_id, "player_eliminated", name, "")
     : await announcement(admin, session.game_id, "game_over", "", "");
@@ -522,13 +527,26 @@ async function settle(admin: Admin, session: SessionRow, settings: RoomSettings,
     .from("answers")
     .select("participant_id, payload, submitted_at")
     .eq("round_id", round.id);
-  const moves: Move[] = (answers ?? [])
+  let moves: Move[] = (answers ?? [])
     .filter((row) => asObject(row.payload).inner === settings.inner)
     .map((row) => ({
       participantId: String(row.participant_id),
       payload: sanitizeMove(row.payload),
       at: Date.parse(String(row.submitted_at)),
     }));
+  if (face.effect.kind === "role_pick") {
+    const { data: votes } = await admin
+      .from("votes")
+      .select("voter_participant_id, choice, created_at")
+      .eq("round_id", round.id);
+    if (votes && votes.length > 0) {
+      moves = votes.map((row) => ({
+        participantId: String(row.voter_participant_id),
+        payload: voteChoice(row.choice),
+        at: Date.parse(String(row.created_at)),
+      }));
+    }
+  }
   const actorIds = strings(asObject(round.resolution).actors);
   const actors = seats.filter((seat) => actorIds.includes(seat.id));
   const innerCount = typeof face.effect.rounds === "number" ? face.effect.rounds : 1;
@@ -943,7 +961,7 @@ export async function submitMove(rawCode: string, fields: Record<string, string>
   if (loaded.view.you.status !== "active" || !loaded.view.card?.yours) {
     return { error: "This card is not waiting for you." };
   }
-  const payload = sanitizeMove({
+  const payload = voteChoice({
     ...fields,
     inner: loaded.view.card.inner,
     agree: fields.agree === "on" || fields.agree === "true",
@@ -978,6 +996,19 @@ export async function submitMove(rawCode: string, fields: Record<string, string>
   });
   if (error) {
     return { error: error.message };
+  }
+  if (loaded.view.card?.kind === "role_pick") {
+    const { error: voteError } = await admin.from("votes").upsert(
+      {
+        round_id: round.id,
+        voter_participant_id: loaded.view.you.id,
+        choice: payload,
+      },
+      { onConflict: "round_id,voter_participant_id" },
+    );
+    if (voteError) {
+      return { error: voteError.message };
+    }
   }
   const { data: session } = await admin
     .from("sessions")

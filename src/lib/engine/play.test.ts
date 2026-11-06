@@ -149,5 +149,6 @@ test("two seated players can be dealt hands without sharing the active card", ()
   const hands = dealHands(["c1", "c2", "c3", "c4"], ["a", "b"], 2, () => 0);
   assert.equal(hands.a.length, 2);
   assert.equal(hands.b.length, 2);
+  assert.equal(new Set([...hands.a, ...hands.b]).size, 4);
   assert.equal(assignActors([{ id: "a", status: "active" }, { id: "b", status: "active" }], 1, 1)[0]?.id, "a");
 });
