@@ -108,6 +108,27 @@ Clients send moves. They do not send scores. If a card has no stored answer, fig
 
 The play view subscribes to one realtime channel, `session:<id>`. Hidden answers stay in `cards.secret`.
 
+## Table
+
+Open a table while signed in. That room is `real_life` and uses one code.
+
+- `/play/<code>` is the host. Pause, resume, extend the timer by 30 seconds, shorten it by 15, skip, reveal a stored hint, reveal a stored answer, end, and restart. Skip writes no score. The answer is not sent to a phone. The board sees it only after the host reveals it.
+- `/play/<code>/board` is the TV. It shows the card, suit, representative, rules, countdown, announcements, player list, and results. It does not accept moves. Announcements play at the start, the rules, the draw, a pause, a success, and game over.
+- `/play/<code>/phone` is a controller. The seat role is `phone`. The board seat role is `board`. A player can stop. A physical task stays optional, and the phone line is shown next to it.
+
+Phones join before the host starts, so they are in the draw. Two browsers, or a private window, keep separate phone cookies.
+
+Local steps when Supabase is on this machine:
+
+```bash
+npx supabase start
+npx supabase db reset
+```
+
+Copy the URL and keys into `.env.local` from `npx supabase status`. Do not invent them. Then `npm run dev`. Sign in, open a table, open the board on one screen, join two phones, and start. The server scores the round.
+
+This environment has no Supabase project. `npm run test:engine` is the proof that a board plus two phones finish a published puzzle, a client score is ignored, the answer stays off the phone, a skip writes no points, and the timer moves only by the server clock.
+
 ## Not in this phase
 
-The shared screen and phone controllers are later work. Collections are later work. Announcement previews on the dashboard still do not require a live room.
+Collections are later work. Announcement previews on the dashboard still do not require a live room.

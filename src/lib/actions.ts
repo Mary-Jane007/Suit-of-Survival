@@ -200,6 +200,7 @@ export async function joinRoom(_prev: ActionState, formData: FormData): Promise<
 
   const displayName = cleanDisplayName(formData.get("display_name"));
   const roomCode = cleanRoomCode(formData.get("room_code"));
+  const asPhone = formData.get("seat") === "phone";
 
   if (!displayName) {
     return { error: "Use a display name of 1–40 letters or numbers." };
@@ -253,7 +254,7 @@ export async function joinRoom(_prev: ActionState, formData: FormData): Promise<
         path: "/",
         maxAge: 60 * 60 * 12,
       });
-      redirect(`/play/${session.room_code}`);
+      redirect(asPhone ? `/play/${session.room_code}/phone` : `/play/${session.room_code}`);
     }
   }
 
@@ -265,7 +266,7 @@ export async function joinRoom(_prev: ActionState, formData: FormData): Promise<
       .eq("session_id", session.id)
       .maybeSingle();
     if (seated?.id) {
-      redirect(`/play/${session.room_code}`);
+      redirect(asPhone ? `/play/${session.room_code}/phone` : `/play/${session.room_code}`);
     }
   }
 
@@ -283,7 +284,7 @@ export async function joinRoom(_prev: ActionState, formData: FormData): Promise<
       path: "/",
       maxAge: 60 * 60 * 12,
     });
-    redirect(`/play/${session.room_code}`);
+    redirect(asPhone ? `/play/${session.room_code}/phone` : `/play/${session.room_code}`);
   }
 
   const { data: participant, error: insertError } = await admin
@@ -292,7 +293,7 @@ export async function joinRoom(_prev: ActionState, formData: FormData): Promise<
       session_id: session.id,
       user_id: user?.userId ?? null,
       display_name: displayName,
-      role: "player",
+      role: asPhone ? "phone" : "player",
       status: "active",
     })
     .select("id")
@@ -310,5 +311,74 @@ export async function joinRoom(_prev: ActionState, formData: FormData): Promise<
     maxAge: 60 * 60 * 12,
   });
 
-  redirect(`/play/${session.room_code}`);
+  redirect(asPhone ? `/play/${session.room_code}/phone` : `/play/${session.room_code}`);
+}
+
+export async function createTable(prev: ActionState, formData: FormData): Promise<ActionState> {
+  void prev;
+  void formData;
+
+  if (!isSupabaseConfigured()) {
+    return setupError();
+  }
+
+  const user = await getVerifiedUser();
+  if (!user) {
+    return { error: "Sign in before opening a table. Phones join with the room code." };
+  }
+  if (!user.profile) {
+    return {
+      error: user.profileError ?? "This account has no profile. Apply the migrations, then sign up again.",
+    };
+  }
+
+  const admin = createAdminClient();
+  if (!admin) {
+    return {
+      error: "A table room needs the server key. Add SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY to .env.local.",
+    };
+  }
+
+  let created: { id: string; room_code: string } | null = null;
+  let lastMessage = "The table could not be opened.";
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const roomCode = createRoomCode();
+    const { data, error } = await admin
+      .from("sessions")
+      .insert({
+        room_code: roomCode,
+        mode: "real_life",
+        status: "lobby",
+        host_user_id: user.userId,
+        settings_snapshot: { draw_limit: 8, digital_elimination: false, deals_cards: true },
+      })
+      .select("id, room_code")
+      .single();
+    if (!error && data) {
+      created = data as { id: string; room_code: string };
+      break;
+    }
+    if (error && error.code !== "23505") {
+      lastMessage = error.message;
+      break;
+    }
+  }
+
+  if (!created) {
+    return { error: lastMessage };
+  }
+
+  const { error: participantError } = await admin.from("participants").insert({
+    session_id: created.id,
+    user_id: user.userId,
+    display_name: user.profile.display_name,
+    role: "host",
+    status: "active",
+  });
+  if (participantError) {
+    await admin.from("sessions").delete().eq("id", created.id);
+    return { error: participantError.message };
+  }
+
+  redirect(`/play/${created.room_code}`);
 }

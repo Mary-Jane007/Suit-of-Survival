@@ -24,6 +24,18 @@ import {
 } from "@/lib/engine/play";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { serverSupabaseKey, supabaseUrl } from "@/lib/supabase/env";
+import {
+  SKIP_MESSAGE,
+  advanceBeat,
+  beatTrigger,
+  hintText,
+  physicalCopy,
+  playingSeats,
+  releasedAnswer,
+  releasedHint,
+  shiftDeadline,
+  type Audience,
+} from "@/lib/engine/table";
 import { cleanRoomCode } from "@/lib/validate";
 
 type Admin = NonNullable<ReturnType<typeof createAdminClient>>;
@@ -41,6 +53,10 @@ type RoomSettings = {
   inner: number;
   force_card_id: string | null;
   notice: string;
+  beat: string;
+  beat_until: number | null;
+  hint_revealed: boolean;
+  answer_revealed: boolean;
 };
 
 export type PlayView = {
@@ -54,6 +70,18 @@ export type PlayView = {
   drawLimit: number;
   notice: string;
   announcement: string;
+  mode: string;
+  beat: string;
+  deadline: string | null;
+  hint: string | null;
+  answer: string | null;
+  screen: {
+    trigger: string;
+    title: string;
+    body: string;
+    seconds: number | null;
+    representative: { name: string; portrait_url: string | null; suit: string | null } | null;
+  } | null;
   card: {
     title: string;
     suit: string;
@@ -69,6 +97,8 @@ export type PlayView = {
     inner: number;
     innerCount: number;
     yours: boolean;
+    physicalOptional: boolean;
+    phoneAlternative: string | null;
   } | null;
 };
 
@@ -78,6 +108,7 @@ type SessionRow = {
   status: string;
   game_id: string | null;
   host_user_id: string;
+  mode: string;
   settings_snapshot: unknown;
 };
 
@@ -135,6 +166,10 @@ function readSettings(value: unknown): RoomSettings {
     inner: typeof row.inner === "number" ? row.inner : 1,
     force_card_id: typeof row.force_card_id === "string" ? row.force_card_id : null,
     notice: typeof row.notice === "string" ? row.notice : "",
+    beat: typeof row.beat === "string" ? row.beat : "",
+    beat_until: typeof row.beat_until === "number" ? row.beat_until : null,
+    hint_revealed: row.hint_revealed === true,
+    answer_revealed: row.answer_revealed === true,
   };
 }
 
@@ -212,6 +247,62 @@ async function saveSettings(admin: Admin, sessionId: string, settings: RoomSetti
   }
 }
 
+async function loadScreen(admin: Admin, gameId: string | null, trigger: string, suit: string | null, cardTitle: string) {
+  if (!gameId) {
+    return null;
+  }
+  const { data } = await admin
+    .from("announcements")
+    .select("title, body, timing, representative_id, trigger")
+    .eq("game_id", gameId)
+    .eq("trigger", trigger)
+    .order("slug", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (!data) {
+    return null;
+  }
+  let representative: { name: string; portrait_url: string | null; suit: string | null } | null = null;
+  if (typeof data.representative_id === "string") {
+    const { data: person } = await admin
+      .from("representatives")
+      .select("name, portrait_url, suit")
+      .eq("id", data.representative_id)
+      .maybeSingle();
+    if (person && typeof person.name === "string") {
+      representative = {
+        name: person.name,
+        portrait_url: typeof person.portrait_url === "string" ? person.portrait_url : null,
+        suit: typeof person.suit === "string" ? person.suit : null,
+      };
+    }
+  } else if (suit) {
+    const { data: person } = await admin
+      .from("representatives")
+      .select("name, portrait_url, suit")
+      .eq("suit", suit)
+      .eq("role", "representative")
+      .limit(1)
+      .maybeSingle();
+    if (person && typeof person.name === "string") {
+      representative = {
+        name: person.name,
+        portrait_url: typeof person.portrait_url === "string" ? person.portrait_url : null,
+        suit: typeof person.suit === "string" ? person.suit : null,
+      };
+    }
+  }
+  const timing = asObject(data.timing);
+  const body = typeof data.body === "string" ? data.body : "";
+  return {
+    trigger: typeof data.trigger === "string" ? data.trigger : trigger,
+    title: typeof data.title === "string" ? data.title : trigger,
+    body: body.replaceAll("[Name]", "").replaceAll("[Card title]", cardTitle),
+    seconds: typeof timing.seconds === "number" ? timing.seconds : null,
+    representative,
+  };
+}
+
 async function announcement(admin: Admin, gameId: string | null, trigger: string, name: string, title: string) {
   if (!gameId) {
     return "";
@@ -270,7 +361,11 @@ async function finish(admin: Admin, session: SessionRow, settings: RoomSettings,
   const name = seats.find((seat) => seat.id === eliminated[0])?.display_name ?? "";
   settings.notice = eliminated.length
     ? await announcement(admin, session.game_id, "player_eliminated", name, "")
-    : await announcement(admin, session.game_id, "round_resolved", "", "");
+    : await announcement(admin, session.game_id, "game_over", "", "");
+  if (session.mode === "real_life") {
+    settings.beat = "game_over";
+    settings.beat_until = null;
+  }
   await saveSettings(admin, session.id, settings);
   await admin.from("sessions").update({ status: "ended", ended_at: new Date().toISOString() }).eq("id", session.id);
 }
@@ -290,7 +385,7 @@ async function openDraw(admin: Admin, session: SessionRow, settings: RoomSetting
   if (!face) {
     throw new Error("The drawn card could not be loaded.");
   }
-  const active = seats.filter((seat) => seat.status === "active");
+  const active = playingSeats(seats, session.mode);
   const needed = Math.min(actorCount(face.effect, active.length), active.length);
   const actors = assignActors(active, settings.draws_done + 1, needed);
   if (settings.force_card_id === face.id) {
@@ -304,6 +399,12 @@ async function openDraw(admin: Admin, session: SessionRow, settings: RoomSetting
   }
   settings.inner = 1;
   settings.phone = emptyPhone();
+  settings.hint_revealed = false;
+  settings.answer_revealed = false;
+  if (session.mode === "real_life" && (settings.beat === "" || settings.beat === "play")) {
+    settings.beat = "draw";
+    settings.beat_until = Date.now() + 4000;
+  }
   const timer = face.effect.timer_seconds;
   const deadline = typeof timer === "number" ? new Date(Date.now() + timer * 1000).toISOString() : null;
   const { data, error } = await admin
@@ -359,6 +460,10 @@ async function closeCard(
   }
   settings.draws_done += 1;
   settings.notice = outcome.message;
+  if (session.mode === "real_life") {
+    settings.beat = "success";
+    settings.beat_until = Date.now() + 4000;
+  }
   await saveSettings(admin, session.id, settings);
   if (settings.draws_done >= settings.draw_limit && !settings.force_card_id) {
     await finish(admin, session, settings, seats);
@@ -447,7 +552,7 @@ async function settle(admin: Admin, session: SessionRow, settings: RoomSettings,
   return "advanced";
 }
 
-export async function readPlay(rawCode: string): Promise<
+export async function readPlay(rawCode: string, audience: Audience = "room"): Promise<
   | { kind: "unconfigured" }
   | { kind: "invalid" }
   | { kind: "missing" }
@@ -464,7 +569,7 @@ export async function readPlay(rawCode: string): Promise<
   }
   const { data, error } = await admin
     .from("sessions")
-    .select("id, room_code, status, game_id, host_user_id, settings_snapshot")
+    .select("id, room_code, status, mode, game_id, host_user_id, settings_snapshot")
     .eq("room_code", roomCode)
     .maybeSingle();
   if (error) {
@@ -484,7 +589,7 @@ export async function readPlay(rawCode: string): Promise<
     }
     const refreshed = await admin
       .from("sessions")
-      .select("id, room_code, status, game_id, host_user_id, settings_snapshot")
+      .select("id, room_code, status, mode, game_id, host_user_id, settings_snapshot")
       .eq("id", session.id)
       .single();
     if (refreshed.data) {
@@ -493,27 +598,46 @@ export async function readPlay(rawCode: string): Promise<
       seats = await people(admin, session.id);
     }
   }
+  if (session.mode === "real_life" && session.status === "live") {
+    const next = advanceBeat(settings.beat, settings.beat_until, Date.now());
+    if (next.beat !== settings.beat || next.until !== settings.beat_until) {
+      settings.beat = next.beat;
+      settings.beat_until = next.until;
+      await saveSettings(admin, session.id, settings);
+    }
+  }
   const user = await getVerifiedUser();
   const cookieStore = await cookies();
   const cookieId = cookieStore.get("sos_participant")?.value ?? null;
   const you = seats.find((seat) => user && seat.user_id === user.userId) ?? seats.find((seat) => seat.id === cookieId) ?? null;
   const scoreMap = await pointsOf(admin, session.id);
   let card: PlayView["card"] = null;
+  let deadline: string | null = null;
+  let hint: string | null = null;
+  let answer: string | null = null;
+  let suitForScreen: string | null = null;
   if (session.game_id && session.status !== "lobby") {
     const { data: round } = await admin
       .from("rounds")
-      .select("id, card_id, resolution, state")
+      .select("id, card_id, resolution, state, deadline_at")
       .eq("session_id", session.id)
       .order("index", { ascending: false })
       .limit(1)
       .maybeSingle();
+    deadline = typeof round?.deadline_at === "string" ? round.deadline_at : null;
     if (round?.card_id) {
       const cards = await pool(admin, session.game_id);
       const face = cards.find((item) => item.id === round.card_id);
       if (face) {
         const actorIds = strings(asObject(round.resolution).actors);
         const actors = seats.filter((seat) => actorIds.includes(seat.id));
-        const shown = publicPlay(face, you?.id ?? null, actors);
+        const viewerId = audience === "board" ? null : you?.id ?? null;
+        const shown = publicPlay(face, viewerId, actors);
+        const copy = physicalCopy(face.effect);
+        suitForScreen = face.suit;
+        hint = releasedHint(hintText(face.effect), settings.hint_revealed);
+        const storedAnswer = typeof face.secret.answer === "string" ? face.secret.answer : null;
+        answer = releasedAnswer(storedAnswer, settings.answer_revealed, audience, Boolean(user && user.userId === session.host_user_id));
         const effect = publicEffect(face.effect);
         const labels = new Map(cards.map((item) => [item.id, `${item.rank} ${item.suit}`]));
         let options = shown.choices.map((choice) => ({ value: choice, label: choice }));
@@ -561,11 +685,16 @@ export async function readPlay(rawCode: string): Promise<
           message: settings.notice,
           inner: settings.inner,
           innerCount,
-          yours: Boolean(you && actors.some((seat) => seat.id === you.id) && you.status === "active"),
+          yours: audience !== "board" && Boolean(you && actors.some((seat) => seat.id === you.id) && you.status === "active"),
+          physicalOptional: copy.optional,
+          phoneAlternative: copy.phone,
         };
       }
     }
   }
+  const beat = session.mode === "real_life" ? settings.beat : "";
+  const trigger = beatTrigger(beat);
+  const screen = trigger ? await loadScreen(admin, session.game_id, trigger, suitForScreen, card?.title ?? "") : null;
   return {
     kind: "ready",
     view: {
@@ -585,6 +714,12 @@ export async function readPlay(rawCode: string): Promise<
       drawLimit: settings.draw_limit,
       notice: settings.notice,
       announcement: settings.notice,
+      mode: session.mode,
+      beat,
+      deadline: beat === "play" ? deadline : null,
+      hint,
+      answer,
+      screen,
       card,
     },
   };
@@ -601,7 +736,7 @@ async function hostSession(roomCode: string) {
   }
   const { data, error } = await admin
     .from("sessions")
-    .select("id, room_code, status, game_id, host_user_id, settings_snapshot")
+    .select("id, room_code, status, mode, game_id, host_user_id, settings_snapshot")
     .eq("room_code", roomCode)
     .maybeSingle();
   if (error || !data) {
@@ -645,9 +780,13 @@ export async function startPlay(rawCode: string) {
   const cards = await pool(admin, gameId);
   settings.hands = dealHands(
     cards.map((item) => item.id),
-    seats.filter((seat) => seat.status === "active").map((seat) => seat.id),
+    playingSeats(seats, session.mode).map((seat) => seat.id),
     settings.hand_size,
   );
+  if (session.mode === "real_life") {
+    settings.beat = "start";
+    settings.beat_until = Date.now() + 4000;
+  }
   await admin.from("sessions").update({ status: "live", game_id: gameId }).eq("id", session.id);
   for (const seat of seats) {
     await admin.from("scores").upsert(
@@ -679,8 +818,20 @@ export async function setPlayStatus(rawCode: string, status: "paused" | "live" |
     const seats = await people(admin, session.id);
     await finish(admin, session, settings, seats);
   } else if (status === "paused" && session.status === "live") {
+    const settings = readSettings(session.settings_snapshot);
+    if (session.mode === "real_life") {
+      settings.beat = "pause";
+      settings.beat_until = null;
+      await saveSettings(admin, session.id, settings);
+    }
     await admin.from("sessions").update({ status: "paused" }).eq("id", session.id);
   } else if (status === "live" && session.status === "paused") {
+    const settings = readSettings(session.settings_snapshot);
+    if (session.mode === "real_life") {
+      settings.beat = "play";
+      settings.beat_until = null;
+      await saveSettings(admin, session.id, settings);
+    }
     await admin.from("sessions").update({ status: "live" }).eq("id", session.id);
   } else {
     return { error: "That control does not apply to this room." };
@@ -804,7 +955,7 @@ export async function submitMove(rawCode: string, fields: Record<string, string>
   }
   const { data: session } = await admin
     .from("sessions")
-    .select("id, room_code, status, game_id, host_user_id, settings_snapshot")
+    .select("id, room_code, status, mode, game_id, host_user_id, settings_snapshot")
     .eq("id", loaded.view.sessionId)
     .single();
   if (session) {
@@ -812,5 +963,210 @@ export async function submitMove(rawCode: string, fields: Record<string, string>
     await settle(admin, row, readSettings(row.settings_snapshot), await people(admin, row.id), false);
   }
   await broadcast(loaded.view.sessionId);
+  return { ok: true };
+}
+
+async function liveTable(rawCode: string) {
+  const roomCode = cleanRoomCode(rawCode);
+  if (!roomCode) {
+    return { error: "That is not a room code." } as const;
+  }
+  const access = await hostSession(roomCode);
+  if ("error" in access) {
+    return access;
+  }
+  if (access.session.mode !== "real_life") {
+    return { error: "That control is for a table room." } as const;
+  }
+  return access;
+}
+
+export async function shiftTimer(rawCode: string, deltaMs: number) {
+  const access = await liveTable(rawCode);
+  if ("error" in access) {
+    return access;
+  }
+  const { admin, session } = access;
+  if (session.status !== "live" && session.status !== "paused") {
+    return { error: "The room is not live." };
+  }
+  const { data: round } = await admin
+    .from("rounds")
+    .select("id, deadline_at")
+    .eq("session_id", session.id)
+    .eq("state", "open")
+    .order("index", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!round) {
+    return { error: "No card is open." };
+  }
+  const deadline = shiftDeadline(typeof round.deadline_at === "string" ? round.deadline_at : null, deltaMs, Date.now());
+  const { error } = await admin.from("rounds").update({ deadline_at: deadline }).eq("id", round.id);
+  if (error) {
+    return { error: error.message };
+  }
+  await broadcast(session.id);
+  return { ok: true };
+}
+
+export async function skipCard(rawCode: string) {
+  const access = await liveTable(rawCode);
+  if ("error" in access) {
+    return access;
+  }
+  const { admin, session } = access;
+  if (session.status !== "live") {
+    return { error: "The room is not live." };
+  }
+  const settings = readSettings(session.settings_snapshot);
+  const seats = await people(admin, session.id);
+  const { data: round } = await admin
+    .from("rounds")
+    .select("id, card_id")
+    .eq("session_id", session.id)
+    .eq("state", "open")
+    .order("index", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!round) {
+    return { error: "No card is open." };
+  }
+  const { data: closed, error } = await admin.rpc("close_round", {
+    round_id: round.id,
+    next_resolution: { message: SKIP_MESSAGE, deltas: [], resolvable: false, skipped: true },
+  });
+  if (error) {
+    return { error: error.message };
+  }
+  if (closed !== true) {
+    return { ok: true };
+  }
+  if (typeof round.card_id === "string" && !settings.dealt.includes(round.card_id)) {
+    settings.dealt.push(round.card_id);
+  }
+  settings.draws_done += 1;
+  settings.notice = SKIP_MESSAGE;
+  settings.beat = "play";
+  settings.beat_until = null;
+  await saveSettings(admin, session.id, settings);
+  if (settings.draws_done >= settings.draw_limit && !settings.force_card_id) {
+    await finish(admin, session, settings, seats);
+  } else {
+    await openDraw(admin, session, settings, seats);
+  }
+  await broadcast(session.id);
+  return { ok: true };
+}
+
+export async function revealCard(rawCode: string, kind: "hint" | "answer") {
+  const access = await liveTable(rawCode);
+  if ("error" in access) {
+    return access;
+  }
+  const { admin, session } = access;
+  if (!session.game_id) {
+    return { error: "This room has no published game." };
+  }
+  const { data: round } = await admin
+    .from("rounds")
+    .select("card_id")
+    .eq("session_id", session.id)
+    .order("index", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!round?.card_id) {
+    return { error: "No card is open." };
+  }
+  const cards = await pool(admin, session.game_id);
+  const face = cards.find((item) => item.id === round.card_id);
+  if (!face) {
+    return { error: "The card could not be loaded." };
+  }
+  const settings = readSettings(session.settings_snapshot);
+  if (kind === "hint") {
+    if (!hintText(face.effect)) {
+      return { error: "This card has no stored hint." };
+    }
+    settings.hint_revealed = true;
+  } else if (typeof face.secret.answer !== "string" || !face.secret.answer.trim()) {
+    return { error: "This card has no stored answer." };
+  } else {
+    settings.answer_revealed = true;
+  }
+  await saveSettings(admin, session.id, settings);
+  await broadcast(session.id);
+  return { ok: true };
+}
+
+export async function restartTable(rawCode: string) {
+  const access = await liveTable(rawCode);
+  if ("error" in access) {
+    return access;
+  }
+  const { admin, session } = access;
+  const previous = readSettings(session.settings_snapshot);
+  const { error: roundError } = await admin.from("rounds").delete().eq("session_id", session.id);
+  if (roundError) {
+    return { error: roundError.message };
+  }
+  const seats = await people(admin, session.id);
+  for (const seat of seats) {
+    if (seat.status === "eliminated") {
+      await admin.from("participants").update({ status: "active" }).eq("id", seat.id);
+    }
+    await admin.from("scores").upsert(
+      { session_id: session.id, participant_id: seat.id, points: 0, result: {} },
+      { onConflict: "session_id,participant_id" },
+    );
+  }
+  const settings = readSettings({});
+  settings.draw_limit = previous.draw_limit;
+  settings.digital_elimination = previous.digital_elimination;
+  settings.hand_size = previous.hand_size;
+  settings.notice = "The table is reset.";
+  await saveSettings(admin, session.id, settings);
+  await admin.from("sessions").update({ status: "lobby", ended_at: null }).eq("id", session.id);
+  await broadcast(session.id);
+  return { ok: true };
+}
+
+export async function ensureBoard(rawCode: string) {
+  const roomCode = cleanRoomCode(rawCode);
+  if (!roomCode) {
+    return { error: "That is not a room code." };
+  }
+  const admin = createAdminClient();
+  if (!admin) {
+    return { error: "The board needs the server key in .env.local." };
+  }
+  const { data: session } = await admin.from("sessions").select("id, status").eq("room_code", roomCode).maybeSingle();
+  if (!session) {
+    return { error: "No room uses that code." };
+  }
+  if (session.status === "ended") {
+    return { ok: true };
+  }
+  const { data: existing } = await admin
+    .from("participants")
+    .select("id")
+    .eq("session_id", session.id)
+    .eq("role", "board")
+    .limit(1)
+    .maybeSingle();
+  if (existing?.id) {
+    return { ok: true };
+  }
+  const { error } = await admin.from("participants").insert({
+    session_id: session.id,
+    user_id: null,
+    display_name: "Table",
+    role: "board",
+    status: "active",
+  });
+  if (error) {
+    return { error: error.message };
+  }
+  await broadcast(session.id);
   return { ok: true };
 }

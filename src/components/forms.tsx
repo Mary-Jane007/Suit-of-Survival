@@ -4,7 +4,7 @@ import { useActionState } from "react";
 
 import { SubmitButton } from "@/components/submit-button";
 import { fieldClass } from "@/components/ui";
-import { createRoom, joinRoom, signIn, signUp } from "@/lib/actions";
+import { createRoom, createTable, joinRoom, signIn, signUp } from "@/lib/actions";
 import type { ActionState } from "@/lib/types";
 
 const initial: ActionState = {};
@@ -114,6 +114,23 @@ export function JoinForm() {
   );
 }
 
+export function PhoneJoinForm({ code }: { code: string }) {
+  const [state, action] = useActionState(joinRoom, initial);
+
+  return (
+    <form action={action} className="flex flex-col gap-4">
+      <input type="hidden" name="seat" value="phone" />
+      <input type="hidden" name="room_code" value={code} />
+      <label className="flex flex-col gap-2 text-xs uppercase tracking-[0.16em] text-mute">
+        Display name
+        <input className={fieldClass} name="display_name" autoComplete="nickname" required />
+      </label>
+      <Feedback state={state} />
+      <SubmitButton pendingLabel="Joining">Join on this phone</SubmitButton>
+    </form>
+  );
+}
+
 export function CreateRoomForm() {
   const [state, action] = useActionState(createRoom, initial);
 
@@ -124,6 +141,20 @@ export function CreateRoomForm() {
       </p>
       <Feedback state={state} />
       <SubmitButton pendingLabel="Opening">Open a room</SubmitButton>
+    </form>
+  );
+}
+
+export function CreateTableForm() {
+  const [state, action] = useActionState(createTable, initial);
+
+  return (
+    <form action={action} className="flex flex-col items-start gap-4">
+      <p className="max-w-md text-sm text-mute">
+        Opens one room code for a TV and for phones. The board only displays. Phones send the moves.
+      </p>
+      <Feedback state={state} />
+      <SubmitButton pendingLabel="Opening">Open a table</SubmitButton>
     </form>
   );
 }

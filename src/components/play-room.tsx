@@ -1,8 +1,9 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useEffect, useActionState } from "react";
+import Link from "next/link";
+import { useActionState } from "react";
 
+import { PlaySync } from "@/components/play-sync";
 import { SubmitButton } from "@/components/submit-button";
 import { areaClass, fieldClass, ghostButtonClass } from "@/components/ui";
 import { suitSymbol } from "@/lib/format";
@@ -10,13 +11,18 @@ import {
   advanceRoom,
   answerRoom,
   endRoom,
+  extendTimer,
   pauseRoom,
+  restartRoom,
   resumeRoom,
+  revealAnswer,
+  revealHint,
+  shortenTimer,
+  skipRoom,
   startRoom,
   stopRoom,
 } from "@/lib/play/actions";
 import type { PlayView } from "@/lib/play/service";
-import { createPlayClient } from "@/lib/supabase/browser";
 import type { ActionState } from "@/lib/types";
 
 const initial: ActionState = {};
@@ -54,7 +60,7 @@ function RoomButton({
   );
 }
 
-function AnswerForm({ view }: { view: PlayView }) {
+export function AnswerForm({ view }: { view: PlayView }) {
   const [state, action] = useActionState(answerRoom, initial);
   const card = view.card;
   if (!card || !card.yours || card.input === "done" || card.input === "unresolved") {
@@ -183,27 +189,11 @@ function AnswerForm({ view }: { view: PlayView }) {
 }
 
 export function PlayRoom({ view }: { view: PlayView }) {
-  const router = useRouter();
-
-  useEffect(() => {
-    const supabase = createPlayClient();
-    if (!supabase) {
-      return;
-    }
-    const channel = supabase.channel(`session:${view.sessionId}`);
-    channel.on("broadcast", { event: "state" }, () => {
-      router.refresh();
-    });
-    channel.subscribe();
-    const poll = window.setInterval(() => router.refresh(), 4000);
-    return () => {
-      window.clearInterval(poll);
-      void supabase.removeChannel(channel);
-    };
-  }, [router, view.sessionId]);
+  const table = view.mode === "real_life";
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-14 sm:px-8">
+      <PlaySync sessionId={view.sessionId} />
       <div>
         <p className="text-[0.7rem] uppercase tracking-[0.32em] text-blood-bright">
           {view.status} · {view.drawsDone}/{view.drawLimit}
@@ -236,6 +226,14 @@ export function PlayRoom({ view }: { view: PlayView }) {
           <h2 className="mt-2 font-display text-3xl tracking-[0.06em]">{view.card.title}</h2>
           <p className="mt-4 whitespace-pre-wrap text-sm leading-7">{view.card.prompt}</p>
           {view.card.question ? <p className="mt-4 text-sm leading-7">{view.card.question}</p> : null}
+          {view.card.physicalOptional ? (
+            <p className="mt-4 text-sm leading-7 text-mute">The physical version is optional.</p>
+          ) : null}
+          {view.card.phoneAlternative ? (
+            <p className="mt-2 text-sm leading-7">Phone: {view.card.phoneAlternative}</p>
+          ) : null}
+          {view.hint ? <p className="mt-4 text-sm leading-7">Hint: {view.hint}</p> : null}
+          {view.answer ? <p className="mt-4 text-sm leading-7">Answer: {view.answer}</p> : null}
           {view.card.privateNote ? <p className="mt-4 text-sm text-paper">{view.card.privateNote}</p> : null}
           {view.card.input === "unresolved" ? (
             <p className="mt-4 text-sm text-blood-bright">This card cannot be scored from the stored row. No points are written.</p>
@@ -259,10 +257,35 @@ export function PlayRoom({ view }: { view: PlayView }) {
         {view.isHost && view.status === "live" && view.card?.input === "unresolved" ? (
           <RoomButton action={advanceRoom} room={view.roomCode} label="Continue" pending="Continuing" />
         ) : null}
-        {view.you?.status === "active" && view.status === "live" ? (
+        {view.you?.status === "active" && view.you.role !== "host" && view.you.role !== "board" && view.status === "live" ? (
           <RoomButton action={stopRoom} room={view.roomCode} label="Stop" pending="Stopping" />
         ) : null}
+        {table && view.isHost && view.status === "live" ? (
+          <>
+            <RoomButton action={extendTimer} room={view.roomCode} label="Extend timer" pending="Extending" />
+            <RoomButton action={shortenTimer} room={view.roomCode} label="Shorten timer" pending="Shortening" />
+            <RoomButton action={skipRoom} room={view.roomCode} label="Skip" pending="Skipping" />
+            <RoomButton action={revealHint} room={view.roomCode} label="Reveal hint" pending="Revealing" />
+            <RoomButton action={revealAnswer} room={view.roomCode} label="Reveal answer" pending="Revealing" />
+          </>
+        ) : null}
+        {table && view.isHost && view.status !== "lobby" ? (
+          <RoomButton action={restartRoom} room={view.roomCode} label="Restart" pending="Restarting" />
+        ) : null}
       </div>
+      {table ? (
+        <p className="text-sm leading-6 text-mute">
+          Open the{" "}
+          <Link href={`/play/${view.roomCode}/board`} className="text-paper">
+            board
+          </Link>{" "}
+          on the TV. Phones join at{" "}
+          <Link href={`/play/${view.roomCode}/phone`} className="text-paper">
+            the phone page
+          </Link>
+          .
+        </p>
+      ) : null}
     </main>
   );
 }
