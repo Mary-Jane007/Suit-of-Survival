@@ -1,0 +1,4 @@
+-- Phase 2 leaves the content tables empty.
+-- Do not seed games, cards, representatives, announcements, or collections here.
+-- Phase 3 imports card text and marks each row source = export or source = proposal.
+-- Export lines that fail SAFETY.md stay unpublished (cards.publishable = false).
