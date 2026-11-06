@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Suspense } from "react";
 
 import { EmptyState, QueryError } from "@/components/empty-state";
@@ -18,8 +19,8 @@ export default function LibraryPage() {
         <p className="text-[0.7rem] uppercase tracking-[0.32em] text-blood-bright">Game library</p>
         <h1 className="mt-3 font-display text-5xl tracking-[0.08em]">PUBLISHED GAMES</h1>
         <p className="mt-4 max-w-2xl text-sm leading-6 text-mute">
-          The library reads games whose status is published. Drafts stay on the owner dashboard.
-          This phase does not ship a deck.
+          The library reads published games. Open one to read the cards that are in play. Drafts and
+          held cards stay on the owner dashboard.
         </p>
       </div>
       <Suspense fallback={<p className="text-sm text-mute">Reading published games…</p>}>
@@ -56,7 +57,9 @@ async function LibraryList() {
         <span key={game.id} className={suitTone(game.suit)}>
           {suitSymbol(game.suit)} {suitLabel(game.suit)}
         </span>,
-        game.title,
+        <Link key={`${game.id}-title`} href={`/library/${game.slug}`} className="underline">
+          {game.title}
+        </Link>,
         game.source,
         game.summary || "—",
       ])}

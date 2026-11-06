@@ -49,3 +49,13 @@ export function formatWhen(value: string) {
 export function titleCase(value: string) {
   return value.replaceAll("_", " ");
 }
+
+export function safePortraitUrl(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+  if (/^\/[A-Za-z0-9./_-]+$/.test(value) || /^https:\/\/[A-Za-z0-9./_-]+$/.test(value)) {
+    return value;
+  }
+  return null;
+}

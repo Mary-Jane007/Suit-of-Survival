@@ -1,4 +1,5 @@
--- Phase 2 leaves the content tables empty.
--- Do not seed games, cards, representatives, announcements, or collections here.
--- Phase 3 imports card text and marks each row source = export or source = proposal.
+-- Phase 3 content is inserted by supabase/migrations/20261106200100_phase3_content.sql
+-- so `npx supabase db push` and `npx supabase db reset` load the deck.
+-- This file stays comments only. Do not put API keys here.
 -- Export lines that fail SAFETY.md stay unpublished (cards.publishable = false).
+-- The 2 of Diamonds cipher is stored out of play with an empty secret.

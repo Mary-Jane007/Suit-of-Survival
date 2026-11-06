@@ -8,6 +8,7 @@ const items = [
   { href: "/owner/games", label: "Games" },
   { href: "/owner/cards", label: "Cards" },
   { href: "/owner/representatives", label: "Representatives" },
+  { href: "/owner/announcements", label: "Announcements" },
   { href: "/owner/players", label: "Players" },
   { href: "/owner/sessions", label: "Sessions" },
   { href: "/owner/design", label: "Design" },

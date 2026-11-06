@@ -12,7 +12,7 @@ export default function HowToPlayPage() {
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-14 sm:px-8">
       <div>
         <p className="text-[0.7rem] uppercase tracking-[0.32em] text-blood-bright">How to play</p>
-        <h1 className="mt-3 font-display text-5xl tracking-[0.08em]">ENTER. WAIT. NO CARD YET.</h1>
+        <h1 className="mt-3 font-display text-5xl tracking-[0.08em]">READ THE LIBRARY. THE LOBBY WAITS.</h1>
       </div>
       <div className="space-y-5 text-sm leading-7 text-paper">
         <p>
@@ -21,12 +21,11 @@ export default function HowToPlayPage() {
         </p>
         <p>
           The first account created is the owner. Every account after that is a player. The owner
-          dashboard is the only place that will later publish games, cards, and announcements.
+          dashboard is where games, cards, and announcements are published.
         </p>
         <p>
-          This version opens a lobby and lists who is in it. It does not deal a challenge, score a
-          round, or run a shared screen. Those wait for later phases, and the rules will come from
-          the database rather than from this page.
+          Published cards are in the game library. This version still only opens a lobby and lists
+          who is in it. It does not deal a challenge, score a round, or run a shared screen.
         </p>
       </div>
       <div className="frame px-6 py-6">

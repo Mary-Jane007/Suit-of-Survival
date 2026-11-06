@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Suspense } from "react";
 
 import { DataTable } from "@/components/data-table";
@@ -27,7 +28,7 @@ async function GamesBody() {
     <OwnerPage
       kicker="Games"
       title="GAMES"
-      lede="Rows from the games table, including drafts. Publishing and editing arrive in a later phase. Nothing here is hardcoded."
+      lede="Rows from the games table, including drafts. Open a row to edit rules, status, and cards."
     >
       {"unconfigured" in result ? (
         <SetupNotice />
@@ -36,7 +37,7 @@ async function GamesBody() {
       ) : result.rows.length === 0 ? (
         <EmptyState
           title="No games are stored"
-          body="The table is empty. Card text is not imported in this phase, so there is no deck to list."
+          body="Apply the Phase 3 migration to load the deck, or create a draft."
         />
       ) : (
         <DataTable
@@ -45,13 +46,20 @@ async function GamesBody() {
             <span key={`${game.id}-suit`} className={suitTone(game.suit)}>
               {suitSymbol(game.suit)} {suitLabel(game.suit)}
             </span>,
-            game.title,
+            <Link key={`${game.id}-title`} href={`/owner/games/${game.id}`} className="underline">
+              {game.title}
+            </Link>,
             game.status,
             game.source,
             formatWhen(game.updated_at),
           ])}
         />
       )}
+      <p className="mt-6">
+        <Link href="/owner/games/new" className="text-xs uppercase tracking-[0.16em] text-blood-bright">
+          New game
+        </Link>
+      </p>
     </OwnerPage>
   );
 }

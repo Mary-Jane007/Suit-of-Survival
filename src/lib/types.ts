@@ -35,6 +35,7 @@ export type RepresentativeRow = {
   role: string;
   suit: string | null;
   bio: string;
+  portrait_url?: string | null;
 };
 
 export type PlayerRow = {
