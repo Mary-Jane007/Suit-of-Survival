@@ -188,6 +188,7 @@ function Opening({ room, name }: { room: Room; name: string }) {
       <p className="jp">ようこそ</p>
       <p className="jp">プレイヤーの皆様</p>
       <p className="jp">まもなく</p>
+      {room.card ? <CardFace suit={room.card.suit} rank={room.card.rank} name={room.card.name} flipped /> : null}
       <h1>【{name}】</h1>
       <p className="jp">が開始します</p>
       {room.card ? <p className="quiet">{room.card.title} · Difficulty {room.card.difficulty}</p> : null}
@@ -205,6 +206,7 @@ function Ending({ room, cleared, name }: { room: Room; cleared: boolean; name: s
   return (
     <>
       <h1>【{name}】</h1>
+      {room.card ? <CardFace suit={room.card.suit} rank={room.card.rank} name={room.card.name} flipped /> : null}
       <p className="jp">{cleared ? "ゲームクリア" : failed ? "ゲームオーバー" : "結果"}</p>
       <p>{cleared ? "Successfully completed." : failed ? "Not completed." : "Some cleared. Some did not."}</p>
       {room.result ? (

@@ -272,6 +272,7 @@ label.write { text-transform: none; letter-spacing: normal; color: var(--fg); fo
   color: #111;
 }
 body.proclaiming.scanlines::after { opacity: 0; }
+.proclamation .playing-card { margin: 8px auto 4px; width: min(168px, 42vw); }
 .proclamation .sheet {
   width: min(720px, calc(100% - 48px));
   margin: auto;
