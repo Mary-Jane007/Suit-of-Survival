@@ -2,7 +2,9 @@ import { cookies } from "next/headers";
 import { Nav } from "@/components/ui";
 import { LibraryEditor } from "@/components/library-editor";
 import { COOKIE, accountFromToken } from "@/lib/auth";
+import { queenSettings } from "@/lib/queen";
 import { library } from "@/lib/room";
+import type { GameDefinition } from "@/lib/types";
 import { notFound } from "next/navigation";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +16,8 @@ export default async function GamePage({ params }: { params: Promise<{ id: strin
   const token = (await cookies()).get(COOKIE)?.value;
   const account = await accountFromToken(token);
   const owner = account?.role === "owner";
+  const definition = (game.definition ?? {}) as GameDefinition;
+  const queen = String(game.format) === "queens_touch" ? queenSettings(definition) : null;
   return (
     <>
       <Nav />
@@ -34,6 +38,13 @@ export default async function GamePage({ params }: { params: Promise<{ id: strin
             scoring: String(game.scoring_summary ?? ""),
             materials: String(game.materials ?? ""),
             safety: String(game.safety_note ?? ""),
+            queen,
+            minPlayers: Number(game.min_players ?? 1),
+            maxPlayers: Number(game.max_players ?? 8),
+            timerSeconds: Number(game.timer_seconds ?? 60),
+            rounds: Number(game.rounds ?? 1),
+            successPoints: Number(definition.successPoints ?? 5),
+            failPoints: Number(definition.failPoints ?? 0),
           }} />
         ) : (
           <article className="panel stack">

@@ -172,7 +172,7 @@ function GameEditor({ game, onDone }: { game: Record<string, unknown>; onDone: (
         <label>Name<input value={String(form.name ?? "")} onChange={(event) => set("name", event.target.value)} /></label>
         <label>Format
           <select value={String(form.format ?? "host_judge")} onChange={(event) => set("format", event.target.value)}>
-            {["multiple_choice","keywords","host_judge","custom","sequence","pattern_doors","number_contest","role_consensus","deduction_wolf","transfer","pending_trust","pending_guess","pending_alliance","pending_risk","intuition","trade","chain","bluff_story","forehead","echo_choice","split_clue","reaction","order_coop","word_chain","unanimous"].map((format) => <option key={format}>{format}</option>)}
+            {["multiple_choice","keywords","host_judge","custom","sequence","pattern_doors","number_contest","role_consensus","deduction_wolf","transfer","pending_trust","pending_guess","pending_alliance","pending_risk","intuition","trade","chain","bluff_story","forehead","echo_choice","split_clue","reaction","order_coop","word_chain","unanimous","queens_touch"].map((format) => <option key={format}>{format}</option>)}
           </select>
         </label>
         <label>Suit

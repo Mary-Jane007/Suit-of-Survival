@@ -30,6 +30,7 @@ export const FORMATS = [
   "order_coop",
   "word_chain",
   "unanimous",
+  "queens_touch",
 ] as const;
 export type Format = (typeof FORMATS)[number];
 
@@ -102,6 +103,28 @@ export type GameDefinition = {
   input?: "text" | "number";
   safety?: string;
   needsActor?: boolean;
+  queen?: QueenSettings;
+};
+
+export type QueenSettings = {
+  locations: { id: string; label: string }[];
+  movements: string[];
+  movementCount: number;
+  questionsPerRound: number[];
+  allowedMistakes: number;
+  continueAfterElimination: boolean;
+  memorizeSeconds: number;
+  difficultyLabel: string;
+  abilities: { deception: boolean; recall: boolean; exchange: boolean };
+  dialogue: {
+    registration: string;
+    start: string;
+    round2: string;
+    deception: string;
+    final: string;
+    success: string;
+    failure: string;
+  };
 };
 
 export type PlayerRef = { id: string; username: string; playing: boolean };

@@ -48,7 +48,7 @@ export function RoomClient({ code, mode }: { code: string; mode: "phone" | "scre
   const [misleadCard, setMisleadCard] = useState("");
 
   async function refresh() {
-    const res = await fetch(`/api/room/${code}`, { cache: "no-store" });
+    const res = await fetch(`/api/room/${code}${mode === "screen" ? "?surface=screen" : ""}`, { cache: "no-store" });
     const data = await res.json();
     if (data.error) setError(data.error);
     else {
@@ -76,7 +76,7 @@ export function RoomClient({ code, mode }: { code: string; mode: "phone" | "scre
     const res = await fetch(`/api/room/${code}/action`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
+      body: JSON.stringify(mode === "screen" ? { ...body, surface: "screen" } : body),
     });
     const data = await res.json();
     if (data.error) setError(data.error);
@@ -370,7 +370,13 @@ function Phone(props: {
           <button className="ghost" onClick={() => send({ type: "betray", flag: true })}>Betray — break it</button>
         </div>
       ) : null}
-      {phase === "playing" && room.play ? <PlayForm {...props} /> : null}
+      {phase === "playing" && room.play?.board?.role === "queen" ? (
+        <>
+          <p>{room.play.prompt}</p>
+          <QueenPanel board={room.play.board} send={send} />
+        </>
+      ) : null}
+      {phase === "playing" && room.play && room.play.board?.role !== "queen" ? <PlayForm {...props} /> : null}
       {phase === "results" && room.result ? <Results result={room.result} /> : null}
       {phase !== "results" ? <Roster room={room} /> : null}
       {room.session.playStyle === "hands" && (phase === "lobby" || phase === "results") ? (
@@ -524,8 +530,128 @@ function PlayForm(props: {
   );
 }
 
+function QueenPanel({ board, send }: { board: Record<string, unknown>; send: (body: Record<string, unknown>) => void }) {
+  const [playerId, setPlayerId] = useState("");
+  const [locationId, setLocationId] = useState("shoulder");
+  const [side, setSide] = useState("left");
+  const [deception, setDeception] = useState("");
+  const [playerA, setPlayerA] = useState("");
+  const [playerB, setPlayerB] = useState("");
+  const step = String(board.step ?? "");
+  const challengers = (board.challengers as { id: string; name: string; assigned: boolean }[]) ?? [];
+  const locations = (board.locations as { id: string; label: string }[]) ?? [];
+  const sequence = (board.sequence as { order: number; name: string; place: string }[]) ?? [];
+  const abilities = (board.abilities as Record<string, string>) ?? {};
+  const answers = (board.answers as { name: string; text: string; note: string }[]) ?? [];
+  const scores = (board.scores as { name: string; score: number; mistakes: number }[]) ?? [];
+  const waiting = challengers.filter((player) => !player.assigned);
+  return (
+    <div className="stack">
+      <p className="kicker">{board.youAreQueen ? "You are the Queen" : "Queen's controls"}</p>
+      <p>{step === "assign" ? "Record the order of the mark. It stays on this phone." : "The challengers cannot see this list."}</p>
+      {step === "assign" ? (
+        <div className="stack">
+          <div className="dock">
+            <button className="ghost" type="button" onClick={() => send({ type: "queen", command: "mode", mode: "touch" })}>Touch</button>
+            <button className="ghost" type="button" onClick={() => send({ type: "queen", command: "mode", mode: "shown" })}>Show the place</button>
+            <button className="ghost" type="button" onClick={() => send({ type: "queen", command: "mode", mode: "digital" })}>Assign on the phone</button>
+          </div>
+          <p className="meta">Now: {String(board.mode ?? "touch")}. Touch is gentle and optional. The shoulder, upper arm, or forearm only.</p>
+          <label>Player
+            <select value={playerId} onChange={(event) => setPlayerId(event.target.value)}>
+              <option value="">Choose</option>
+              {waiting.map((player) => <option key={player.id} value={player.id}>{player.name}</option>)}
+            </select>
+          </label>
+          <label>Place
+            <select value={locationId} onChange={(event) => setLocationId(event.target.value)}>
+              {locations.map((location) => <option key={location.id} value={location.id}>{location.label}</option>)}
+            </select>
+          </label>
+          <label>Side
+            <select value={side} onChange={(event) => setSide(event.target.value)}>
+              <option value="left">Left</option>
+              <option value="right">Right</option>
+            </select>
+          </label>
+          <div className="dock">
+            <button className="btn" type="button" onClick={() => send({ type: "queen", command: "assign", playerId, locationId, side })}>Record</button>
+            <button className="ghost" type="button" onClick={() => send({ type: "queen", command: "undo" })}>Undo</button>
+            <button className="ghost" type="button" onClick={() => send({ type: "queen", command: "lock" })}>Lock the sequence</button>
+          </div>
+        </div>
+      ) : null}
+      {sequence.length ? (
+        <ol>
+          {sequence.map((touch) => <li key={`${touch.order}-${touch.name}`}>{touch.order}. {touch.name} — {touch.place}</li>)}
+        </ol>
+      ) : null}
+      {step === "memorize" || step === "movement" || step === "deception" ? (
+        <button className="btn" type="button" onClick={() => send({ type: "queen", command: "next" })}>{step === "memorize" ? "Begin" : "Open the question"}</button>
+      ) : null}
+      {step !== "assign" && step !== "question" ? (
+        <div className="stack">
+          {abilities.deception === "ready" ? (
+            <form className="stack" onSubmit={(event) => { event.preventDefault(); send({ type: "queen", command: "ability", ability: "deception", text: deception }); }}>
+              <label>The Deception<textarea value={deception} onChange={(event) => setDeception(event.target.value)} placeholder="A misleading announcement" /></label>
+              <button className="ghost" type="submit">Speak the deception</button>
+            </form>
+          ) : null}
+          {abilities.recall === "ready" ? <button className="ghost" type="button" onClick={() => send({ type: "queen", command: "ability", ability: "recall" })}>The Recall</button> : null}
+          {abilities.exchange === "ready" ? (
+            <div className="stack">
+              <label>First player
+                <select value={playerA} onChange={(event) => setPlayerA(event.target.value)}>
+                  <option value="">Choose</option>
+                  {challengers.map((player) => <option key={player.id} value={player.id}>{player.name}</option>)}
+                </select>
+              </label>
+              <label>Second player
+                <select value={playerB} onChange={(event) => setPlayerB(event.target.value)}>
+                  <option value="">Choose</option>
+                  {challengers.map((player) => <option key={player.id} value={player.id}>{player.name}</option>)}
+                </select>
+              </label>
+              <button className="ghost" type="button" onClick={() => send({ type: "queen", command: "ability", ability: "exchange", playerA, playerB })}>The Exchange</button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+      {answers.length ? (
+        <div className="stack">
+          {answers.map((answer) => <p key={answer.name}>{answer.name}: {answer.text || "waiting"} {answer.note}</p>)}
+        </div>
+      ) : null}
+      {scores.length ? <p className="meta">{scores.map((row) => `${row.name} ${row.score} (${row.mistakes})`).join(" · ")}</p> : null}
+      <div className="dock">
+        <button className="ghost" type="button" onClick={() => send({ type: "queen", command: "pause" })}>Pause</button>
+        <button className="ghost" type="button" onClick={() => send({ type: "queen", command: "resume" })}>Resume</button>
+        <button className="ghost" type="button" onClick={() => send({ type: "queen", command: "movement" })}>Movement</button>
+        <button className="ghost hot" type="button" onClick={() => send({ type: "queen", command: "end" })}>End the challenge</button>
+      </div>
+    </div>
+  );
+}
+
 function Board({ board }: { board: Record<string, unknown> | null }) {
   if (!board) return null;
+  if (board.game === "queens_touch") {
+    const movement = Array.isArray(board.movement) ? board.movement.filter((line) => typeof line === "string") : [];
+    return (
+      <div className="stack">
+        {board.roundName ? <p className="kicker">{String(board.roundName)}</p> : null}
+        {board.youAreQueen ? <p>You are the Queen of Spades.</p> : null}
+        {board.mark ? <p>Your mark, once: {String(board.mark)}</p> : null}
+        {board.deception ? <p>{String(board.deception)}</p> : null}
+        {movement.length ? (
+          <ol>
+            {movement.map((line) => <li key={line}>{line}</li>)}
+          </ol>
+        ) : null}
+        {movement.length ? <p className="meta">Follow only what is comfortable. Stop whenever you need.</p> : null}
+      </div>
+    );
+  }
   const revealed = board.revealed as { label: string }[] | undefined;
   if (revealed?.length) return <p className="meta">{revealed.map((item) => item.label).join(" · ")}</p>;
   if (board.live === true) return <p className="kicker">FLASH</p>;

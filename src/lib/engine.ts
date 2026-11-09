@@ -1,3 +1,4 @@
+import { initQueen, queenHost, queenSubmit, queenTick, queenView } from "./queen";
 import type {
   CardName,
   GameDefinition,
@@ -235,6 +236,11 @@ export function createRuntime(
   }
   if (format === "host_judge" || format === "custom") {
     rt.extra.marks = {};
+  }
+  if (format === "queens_touch") {
+    rt.rounds = Math.max(1, Math.min(5, Number(def.rounds ?? 5)));
+    rt.deadline = null;
+    initQueen(rt, rand);
   }
   return rt;
 }
@@ -518,6 +524,10 @@ function openNextRound(rt: Runtime, now: number) {
 export function tick(runtime: Runtime, now: number): Runtime {
   const rt = clone(runtime);
   if (rt.phase === "complete" || rt.pausedRemaining !== null) return rt;
+  if (rt.format === "queens_touch") {
+    queenTick(rt, now);
+    return rt;
+  }
   if (rt.phase === "feedback") {
     const until = Number(rt.extra.feedbackUntil ?? 0);
     if (now >= until) openNextRound(rt, now);
@@ -674,6 +684,8 @@ function applySubmit(rt: Runtime, player: PlayerRef, payload: SubmitPayload, now
       return bluffSubmit(rt, player, payload);
     case "forehead":
       return foreheadSubmit(rt, player, payload);
+    case "queens_touch":
+      return queenSubmit(rt, player, payload, now);
     default:
       return "This game format is not playable yet.";
   }
@@ -990,10 +1002,15 @@ export function hostAct(
     return { ok: true, runtime: rt };
   }
   if (action.type === "skip") {
-    resolveStandard(rt, action.now);
+    if (rt.format === "queens_touch") queenHost(rt, "skip", action.now);
+    else resolveStandard(rt, action.now);
     return { ok: true, runtime: rt };
   }
   if (action.type === "end") {
+    if (rt.format === "queens_touch") {
+      queenHost(rt, "end", Date.now());
+      return { ok: true, runtime: rt };
+    }
     for (const player of activePlayers(rt)) {
       if (rt.reasons[player.id]) continue;
       give(rt, player.id, 0, false, "The representative closed the challenge.");
@@ -1036,7 +1053,8 @@ function revealedPieces(rt: Runtime, now: number) {
   return pieces.slice(0, count).map((piece) => ({ id: piece.token, label: labels[piece.token] ?? piece.token }));
 }
 
-export function view(runtime: Runtime, userId: string | null, isHost: boolean, now: number): PlayView {
+export function view(runtime: Runtime, userId: string | null, isHost: boolean, now: number, revealQueen = true): PlayView {
+  if (runtime.format === "queens_touch") return queenView(runtime, userId, isHost, now, revealQueen);
   const rt = runtime;
   const active = activePlayers(rt);
   const current = rt.submissions[String(rt.round)] ?? {};

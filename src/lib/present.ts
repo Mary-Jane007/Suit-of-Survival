@@ -63,7 +63,7 @@ export const DEFAULT_SETTINGS = {
   benchingEnabled: true,
   benchLocksPlay: false,
   awardCardOn: "success",
-  maxPlayers: 12,
+  maxPlayers: 16,
   registrationSeconds: 20,
   countdownSeconds: 5,
   soundEnabled: true,

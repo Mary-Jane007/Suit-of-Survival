@@ -12,6 +12,7 @@ import {
   view,
   type SubmitPayload,
 } from "./engine";
+import { queenCommand, queenSettings } from "./queen";
 import { cardTitle, fill, parseJson, publicDefinition } from "./present";
 import { ready, rankWeight } from "./seed";
 import { AVATARS, FORMATS, RANKS, SUITS, SAFETY_BANNER, type GameDefinition, type Runtime, type Suit } from "./types";
@@ -250,7 +251,7 @@ async function lock(q: Sql, code: string) {
   return rows[0];
 }
 
-export async function readRoom(q: Sql, code: string, account: Account | null) {
+export async function readRoom(q: Sql, code: string, account: Account | null, surface: "phone" | "screen" = "phone") {
   const rows = await q<SessionRow>("select * from game_sessions where upper(code) = upper($1)", [code.trim()]);
   const session = rows[0];
   if (!session) throw new Error("No open room uses that code.");
@@ -270,7 +271,7 @@ export async function readRoom(q: Sql, code: string, account: Account | null) {
   const phase = String(session.phase);
   const runtime = phase === "playing" || phase === "results" ? parseJson<Runtime | null>(session.runtime, null) : null;
   const now = Date.now();
-  const play = runtime && (phase === "playing" || phase === "results") ? view(runtime, account?.id ?? null, isHost, now) : null;
+  const play = runtime && (phase === "playing" || phase === "results") ? view(runtime, account?.id ?? null, isHost, now, surface !== "screen") : null;
   const hands = parseJson<Record<string, string[]>>(session.hands, {});
   const handIds = account ? hands[account.id] ?? [] : [];
   const handGames = handIds.length
@@ -329,7 +330,7 @@ export async function readRoom(q: Sql, code: string, account: Account | null) {
           rank: game.rank,
           name: game.name,
           title: cardTitle(String(game.suit), String(game.rank)),
-          difficulty: game.difficulty_label || rankWeight(String(game.rank)),
+          difficulty: queenDifficulty(game) || game.difficulty_label || rankWeight(String(game.rank)),
           rules: game.rules,
           objective: game.objective,
           materials: game.materials,
@@ -373,17 +374,18 @@ export async function readRoom(q: Sql, code: string, account: Account | null) {
 function lineFor(phase: string, game: Record<string, unknown>, announcement: Announcement | null) {
   if (phase === "intro") return String(game.intro ?? "");
   if (phase === "rules" || phase === "registration") return String(game.rules_line ?? "");
+  if (phase === "playing" && String(game.format) === "queens_touch" && announcement?.body) return announcement.body;
   if (phase === "playing" || phase === "countdown") return String(game.start_line ?? "");
   if (phase === "results") return announcement?.body || String(game.success_line ?? "");
   return String(game.intro ?? "");
 }
 
-export async function viewRoom(account: Account | null, code: string) {
+export async function viewRoom(account: Account | null, code: string, surface: "phone" | "screen" = "phone") {
   await ready();
   return withTx(async (q) => {
     const session = await lock(q, code);
     await advanceClock(q, session);
-    return readRoom(q, code, account);
+    return readRoom(q, code, account, surface);
   });
 }
 
@@ -418,11 +420,14 @@ async function advanceClock(q: Sql, session: SessionRow) {
     if (!runtime) return;
     const next = tick(runtime, now);
     if (JSON.stringify(next) !== JSON.stringify(runtime)) {
-      await q("update game_sessions set runtime = $2::jsonb, paused = $3, updated_at = now() where id = $1", [
-        session.id,
-        JSON.stringify(next),
-        next.pausedRemaining !== null,
-      ]);
+      if (next.format === "queens_touch") await storeRuntime(q, session, next);
+      else {
+        await q("update game_sessions set runtime = $2::jsonb, paused = $3, updated_at = now() where id = $1", [
+          session.id,
+          JSON.stringify(next),
+          next.pausedRemaining !== null,
+        ]);
+      }
       if (isComplete(next)) await settle(q, session, next);
     }
   }
@@ -468,7 +473,7 @@ async function beginPlay(q: Sql, session: SessionRow) {
     "select id, name as label, suit, rank from games where status = 'published'",
   );
   const runtime = createRuntime(
-    { ...definition, format: String(game.format), timerSeconds: Number(game.timer_seconds), prompt: definition.prompt || String(game.instructions || game.name) },
+    { ...definition, format: String(game.format), rounds: Number(game.rounds ?? definition.rounds ?? 1), timerSeconds: Number(game.timer_seconds), prompt: definition.prompt || String(game.instructions || game.name) },
     playing.map((person) => ({ id: person.user_id, username: person.username, playing: true })),
     Date.now(),
     `${session.id}:${session.current_game_id}:${session.round_index}`,
@@ -476,7 +481,8 @@ async function beginPlay(q: Sql, session: SessionRow) {
     actor,
   );
   const map = await templates(q);
-  const banner = announce(map, "game_started", { ...varsOf(game, session, 0), line: String(game.start_line ?? "") }, actor ?? undefined);
+  const started = String(game.format) === "queens_touch" ? queenSettings(definition).dialogue.start : String(game.start_line ?? "");
+  const banner = announce(map, "game_started", { ...varsOf(game, session, 0), line: started }, actor ?? undefined);
   await q(
     "update game_sessions set phase = 'playing', runtime = $2::jsonb, deadline_ms = $3, announcement = $4::jsonb, paused = false, updated_at = now() where id = $1",
     [session.id, JSON.stringify(runtime), runtime.deadline, JSON.stringify(banner)],
@@ -643,7 +649,7 @@ export async function act(account: Account, code: string, action: Record<string,
     const freshRows = await q<SessionRow>("select * from game_sessions where id = $1", [session.id]);
     const current = freshRows[0];
     const type = String(action.type ?? "");
-    if (["ready", "enter", "leave", "submit", "betray", "play_card"].includes(type)) {
+    if (["ready", "enter", "leave", "submit", "betray", "play_card", "queen"].includes(type)) {
       await playerAct(q, current, account, action);
     } else {
       hostOnly(account, current);
@@ -651,7 +657,7 @@ export async function act(account: Account, code: string, action: Record<string,
     }
     const again = await q<SessionRow>("select * from game_sessions where id = $1", [session.id]);
     if (again[0]) await advanceClock(q, again[0]);
-    return readRoom(q, code, account);
+    return readRoom(q, code, account, action.surface === "screen" ? "screen" : "phone");
   });
 }
 
@@ -700,6 +706,16 @@ async function playerAct(q: Sql, session: SessionRow, account: Account, action: 
     await beginPlay(q, nextSession);
     return;
   }
+  if (type === "queen") {
+    if (session.phase !== "playing") throw new Error("The challenge is not open.");
+    const runtime = parseJson<Runtime | null>(session.runtime, null);
+    if (!runtime) throw new Error("The challenge is not open.");
+    const result = queenCommand(runtime, account.id, account.role === "owner", action, Date.now());
+    if (!result.ok) throw new Error(result.error);
+    await storeRuntime(q, session, result.runtime);
+    if (isComplete(result.runtime)) await settle(q, session, result.runtime);
+    return;
+  }
   if (type === "submit") {
     if (session.phase !== "playing") throw new Error("The challenge is not open.");
     const runtime = parseJson<Runtime | null>(session.runtime, null);
@@ -711,6 +727,11 @@ async function playerAct(q: Sql, session: SessionRow, account: Account, action: 
       "insert into answers (id, session_id, game_id, user_id, round_index, payload) values ($1,$2,$3,$4,$5,$6::jsonb)",
       [randomUUID(), session.id, session.current_game_id, account.id, result.runtime.round, JSON.stringify(payload)],
     );
+    if (result.runtime.format === "queens_touch") {
+      await storeRuntime(q, session, result.runtime);
+      if (isComplete(result.runtime)) await settle(q, session, result.runtime);
+      return;
+    }
     if (["role_consensus", "echo_choice", "deduction_wolf"].includes(result.runtime.format)) {
       await q(
         "insert into votes (id, session_id, game_id, user_id, choice) values ($1,$2,$3,$4,$5::jsonb)",
@@ -788,6 +809,9 @@ async function hostAction(q: Sql, session: SessionRow, account: Account, action:
   if (session.phase !== "playing") throw new Error("That control is for a live challenge.");
   const runtime = parseJson<Runtime | null>(session.runtime, null);
   if (!runtime) throw new Error("That control is for a live challenge.");
+  if (runtime.format === "queens_touch") {
+    if (!["pause", "resume", "skip", "end"].includes(type)) throw new Error("The Queen runs this challenge.");
+  }
   const seconds = Math.max(1, Math.min(600, Number(action.seconds ?? 15)));
   const result =
     type === "extend" || type === "shorten"
@@ -804,13 +828,33 @@ async function hostAction(q: Sql, session: SessionRow, account: Account, action:
     const game = await gameRow(q, String(session.current_game_id));
     announcement = announce(map, key, varsOf(game, session, seconds));
   }
-  await q("update game_sessions set runtime = $2::jsonb, paused = $3, announcement = $4::jsonb where id = $1", [
-    session.id,
-    JSON.stringify(result.runtime),
-    result.runtime.pausedRemaining !== null,
-    JSON.stringify(announcement),
-  ]);
+  if (result.runtime.format === "queens_touch") {
+    if (!result.runtime.extra.banner) result.runtime.extra.banner = announcement;
+    await storeRuntime(q, session, result.runtime);
+  } else {
+    await q("update game_sessions set runtime = $2::jsonb, paused = $3, announcement = $4::jsonb where id = $1", [
+      session.id,
+      JSON.stringify(result.runtime),
+      result.runtime.pausedRemaining !== null,
+      JSON.stringify(announcement),
+    ]);
+  }
   if (isComplete(result.runtime)) await settle(q, session, result.runtime);
+}
+
+async function storeRuntime(q: Sql, session: SessionRow, runtime: Runtime) {
+  const banner = runtime.extra.banner as Announcement | undefined;
+  if (banner) delete runtime.extra.banner;
+  const announcement = banner ?? parseJson<Announcement>(session.announcement, { kicker: "", title: "", body: "" });
+  await q(
+    "update game_sessions set runtime = $2::jsonb, deadline_ms = $3, paused = $4, announcement = $5::jsonb, updated_at = now() where id = $1",
+    [session.id, JSON.stringify(runtime), runtime.deadline, runtime.pausedRemaining !== null, JSON.stringify(announcement)],
+  );
+}
+
+function queenDifficulty(game: Record<string, unknown>) {
+  if (String(game.format) !== "queens_touch") return "";
+  return queenSettings(parseJson(game.definition, {})).difficultyLabel;
 }
 
 async function advancePhase(q: Sql, session: SessionRow, map: Awaited<ReturnType<typeof templates>>) {

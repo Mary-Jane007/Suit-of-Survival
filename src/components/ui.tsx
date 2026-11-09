@@ -104,6 +104,7 @@ export function Portrait({ portraitKey, accent }: { portraitKey?: string; accent
       {key === "solene" && <circle cx="100" cy="110" r="28" fill="none" stroke="#e23b3b" strokeWidth="2" />}
       {key === "halden" && <path d="M60 120 H140 M100 80 V150" stroke="#d6b25e" strokeWidth="2" />}
       {key === "ren" && <path d="M70 80 H130 L110 160 H90 Z" fill="none" stroke="#f4f1ea" strokeWidth="2" />}
+      {key === "queen" && <path d="M70 130 L85 90 L100 120 L115 80 L130 130 Z" fill="none" stroke="#f4f1ea" strokeWidth="2" />}
       {key === "herald" && <rect x="78" y="78" width="44" height="64" fill="none" stroke={ink} strokeWidth="2" />}
       <path d="M30 200 H170" stroke={ink} strokeWidth="1" />
     </svg>

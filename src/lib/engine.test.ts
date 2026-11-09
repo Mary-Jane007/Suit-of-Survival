@@ -9,6 +9,7 @@ import {
   tick,
   view,
 } from "./engine";
+import { queenCommand } from "./queen";
 import type { CardName, PlayerRef } from "./types";
 
 const cards: CardName[] = [
@@ -255,4 +256,66 @@ test("a disconnected clock still resolves from the server deadline", () => {
   rt = tick(rt, 20_000);
   assert.equal(rt.phase, "complete");
   assert.equal(outcomes(rt)[0].success, false);
+});
+
+test("the Queen of Spades is chosen at random and the touch stays secret", () => {
+  const ids = ["a", "b", "c", "d", "e", "f", "g", "h"];
+  let rt = createRuntime(
+    { format: "queens_touch", timerSeconds: 30, rounds: 5, successPoints: 5, failPoints: -2 },
+    players(ids),
+    1_000,
+    "queen-card",
+    cards,
+  );
+  const queenId = String(rt.secret.queenId);
+  assert.ok(ids.includes(queenId));
+  const challengers = ids.filter((id) => id !== queenId);
+  assert.equal(challengers.length, 7);
+  for (const id of challengers) {
+    const phone = view(rt, id, false, 1_000);
+    assert.equal(phone.board?.youAreQueen, false);
+    assert.equal(phone.board?.role, "challenger");
+    assert.equal(JSON.stringify(phone).includes("forearm"), false);
+  }
+  const queenPhone = view(rt, queenId, false, 1_000);
+  assert.equal(queenPhone.board?.youAreQueen, true);
+  assert.equal(queenPhone.subprompt, "You are the Queen of Spades.");
+  const screen = view(rt, queenId, true, 1_000, false);
+  assert.equal(screen.board?.role, "challenger");
+  assert.equal(JSON.stringify(screen).includes("sequence"), false);
+  const stranger = queenCommand(rt, challengers[0], false, { command: "assign", playerId: challengers[1], locationId: "forearm", side: "left" }, 1_000);
+  assert.equal(stranger.ok, false);
+  const places = ["shoulder", "upper-arm", "forearm", "shoulder", "upper-arm", "forearm", "shoulder"];
+  const sides = ["left", "right", "left", "right", "left", "right", "left"];
+  for (let index = 0; index < challengers.length; index += 1) {
+    const saved = queenCommand(rt, queenId, false, { command: "assign", playerId: challengers[index], locationId: places[index], side: sides[index] }, 1_000);
+    assert.equal(saved.ok, true);
+    rt = saved.runtime;
+  }
+  const locked = queenCommand(rt, queenId, false, { command: "lock" }, 2_000);
+  assert.equal(locked.ok, true);
+  rt = locked.runtime;
+  const hidden = view(rt, challengers[0], false, 2_000);
+  assert.equal(JSON.stringify(hidden).includes("forearm"), false);
+  const shown = queenCommand(rt, queenId, true, { command: "begin" }, 2_000);
+  assert.equal(shown.ok, true);
+  rt = shown.runtime;
+  assert.equal(view(rt, challengers[0], false, 2_000).prompt, "Where did the Queen mark you?");
+  for (const id of challengers) {
+    const answer = submit(rt, id, { choice: `${places[challengers.indexOf(id)]}:${sides[challengers.indexOf(id)]}` }, 2_100);
+    assert.equal(answer.ok, true);
+    rt = answer.runtime;
+  }
+  const again = submit(rt, challengers[0], { choice: "shoulder:left" }, 2_200);
+  assert.equal(again.ok, false);
+  assert.equal(rt.scores[challengers[0]], 5);
+  rt = tick(rt, 5_000);
+  assert.equal(String(rt.extra.step), "movement");
+  const lied = queenCommand(rt, queenId, false, { command: "ability", ability: "deception", text: "The first mark was on the right forearm." }, 5_100);
+  assert.equal(lied.ok, true);
+  rt = lied.runtime;
+  assert.equal(rt.extra.deception, "The first mark was on the right forearm.");
+  assert.equal((rt.secret.sequence as { side: string }[])[0].side, sides[0]);
+  const repeated = queenCommand(rt, queenId, false, { command: "ability", ability: "deception", text: "Again." }, 5_200);
+  assert.equal(repeated.ok, false);
 });

@@ -5,6 +5,7 @@ function voice(slug: string, kind: "welcome" | "rules") {
 }
 
 export function phaseCues(phase: string, slug: string | null, tone: string | null): string[] | null {
+  if (slug === "spades-q" && OPEN.has(phase)) return ["/preview-sounds/game-detected.mp3", "/preview-sounds/game-starts.mp3"];
   if (slug && OPEN.has(phase) && /^[a-z0-9-]+$/.test(slug)) {
     return ["/preview-sounds/game-detected.mp3", "/preview-sounds/game-starts.mp3", voice(slug, "welcome"), voice(slug, "rules")];
   }

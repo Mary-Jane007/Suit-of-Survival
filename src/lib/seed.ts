@@ -91,6 +91,21 @@ const REPS = [
     special_line: "If you are stuck, say the fragment out loud.",
   },
   {
+    id: "queen-spades",
+    name: "Queen of Spades",
+    suit: "spades",
+    portrait_key: "queen",
+    accent: "#f4f1ea",
+    personality: "Still and exact. She never raises her voice. The mark is a courtesy, not a claim.",
+    style: "Short, formal, and impossible to hurry. She does not repeat herself.",
+    intro: "Queen of Spades. Your memory is your only defense.",
+    rules_line: "I will not repeat myself. The mark is gentle, or it is only a place you are shown.",
+    start_line: "Pay attention. Every detail matters. Nothing will be repeated.",
+    success_line: "Your memory has proven sufficient. You have successfully completed the game.",
+    failure_line: "The Queen has prevailed. The challenge has ended.",
+    special_line: "Are you certain that your memory serves you well?",
+  },
+  {
     id: "ren",
     name: "Ren",
     suit: "spades",
@@ -184,7 +199,7 @@ async function seed() {
     }
   }
   for (const entry of CATALOG) {
-    const rep = entry.suit === "diamonds" ? "iris" : entry.suit === "hearts" ? "solene" : entry.suit === "clubs" ? "halden" : "ren";
+    const rep = entry.slug === "spades-q" ? "queen-spades" : entry.suit === "diamonds" ? "iris" : entry.suit === "hearts" ? "solene" : entry.suit === "clubs" ? "halden" : "ren";
     await sql(
       `insert into games
         (id, slug, source, name, description, suit, rank, difficulty, representative_id, min_players, max_players,
@@ -238,6 +253,50 @@ async function seed() {
       [achievement.id, achievement.name, achievement.description, JSON.stringify(achievement.rule)],
     );
   }
+  await installQueenCard();
+  const settingsRows = await sql<{ value: unknown }>("select value from app_settings where key = 'game'");
+  const stored = settingsRows[0]?.value;
+  const settings = typeof stored === "string" ? JSON.parse(stored) as { maxPlayers?: number } : (stored as { maxPlayers?: number } | undefined);
+  if (settings && Number(settings.maxPlayers ?? 0) < 16) {
+    settings.maxPlayers = 16;
+    await sql("update app_settings set value = $1::jsonb where key = 'game'", [JSON.stringify(settings)]);
+  }
+}
+
+async function installQueenCard() {
+  const queen = CATALOG.find((entry) => entry.slug === "spades-q");
+  if (!queen) return;
+  const current = await sql<{ format: string }>("select format from games where slug = 'spades-q'");
+  if (current[0] && current[0].format !== "queens_touch") {
+    await sql(
+      `update games set name=$1, description=$2, rules=$3, instructions=$4, objective=$5, win_condition=$6, fail_condition=$7,
+        scoring_summary=$8, materials=$9, min_players=$10, max_players=$11, timer_seconds=$12, duration_seconds=$12, rounds=$13,
+        format=$14, definition=$15::jsonb, safety_note=$16, representative_id='queen-spades', updated_at=now()
+       where slug='spades-q'`,
+      [
+        queen.name,
+        queen.description,
+        queen.rules,
+        queen.instructions,
+        queen.objective,
+        queen.win,
+        queen.fail,
+        queen.scoring,
+        queen.materials,
+        queen.min,
+        queen.max,
+        queen.timer,
+        queen.rounds,
+        queen.definition.format,
+        JSON.stringify(queen.definition),
+        queen.safety,
+      ],
+    );
+  }
+  await sql(
+    `update cards set description=$2, difficulty_label=$3 where id='spades-Q' and description=$1`,
+    [RANK_BLURB.Q, "The Queen's Touch. One player is chosen as the Queen. Memory is the challenge.", "Queen — extreme"],
+  );
 }
 
 export function repForSuit(suit: Suit | string) {

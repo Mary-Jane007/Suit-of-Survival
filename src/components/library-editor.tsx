@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import type { QueenSettings } from "@/lib/types";
 
 export type LibraryFields = {
   id: string;
@@ -16,6 +17,13 @@ export type LibraryFields = {
   scoring: string;
   materials: string;
   safety: string;
+  queen: QueenSettings | null;
+  minPlayers: number;
+  maxPlayers: number;
+  timerSeconds: number;
+  rounds: number;
+  successPoints: number;
+  failPoints: number;
 };
 
 export function LibraryEditor({ game }: { game: LibraryFields }) {
@@ -57,11 +65,53 @@ export function LibraryEditor({ game }: { game: LibraryFields }) {
       <label className="write">Scoring<input value={form.scoring} onChange={(event) => set("scoring", event.target.value)} /></label>
       <label className="write">Materials<input value={form.materials} onChange={(event) => set("materials", event.target.value)} /></label>
       <label className="write">Safety<textarea value={form.safety} onChange={(event) => set("safety", event.target.value)} /></label>
+      {form.queen ? <QueenFields form={form} setForm={setForm} /> : null}
       <div className="dock">
         <button className="btn" type="submit">Save</button>
       </div>
       {saved ? <p>Saved. The white page reads these rules.</p> : null}
       <p className="error">{error}</p>
     </form>
+  );
+}
+
+function QueenFields({ form, setForm }: { form: LibraryFields; setForm: (value: LibraryFields) => void }) {
+  const queen = form.queen;
+  if (!queen) return null;
+  function patch(next: QueenSettings) {
+    setForm({ ...form, queen: next });
+  }
+  const dialogue = queen.dialogue;
+  return (
+    <div className="stack">
+      <p>Queen of Spades. These settings stay with the card.</p>
+      <div className="grid-2">
+        <label>Minimum players<input type="number" value={form.minPlayers} onChange={(event) => setForm({ ...form, minPlayers: Number(event.target.value) })} /></label>
+        <label>Maximum players<input type="number" value={form.maxPlayers} onChange={(event) => setForm({ ...form, maxPlayers: Number(event.target.value) })} /></label>
+        <label>Rounds<input type="number" value={form.rounds} onChange={(event) => setForm({ ...form, rounds: Number(event.target.value) })} /></label>
+        <label>Seconds per question<input type="number" value={form.timerSeconds} onChange={(event) => setForm({ ...form, timerSeconds: Number(event.target.value) })} /></label>
+        <label>Points for a correct answer<input type="number" value={form.successPoints} onChange={(event) => setForm({ ...form, successPoints: Number(event.target.value) })} /></label>
+        <label>Points for a miss<input type="number" value={form.failPoints} onChange={(event) => setForm({ ...form, failPoints: Number(event.target.value) })} /></label>
+        <label>Allowed mistakes<input type="number" value={queen.allowedMistakes} onChange={(event) => patch({ ...queen, allowedMistakes: Number(event.target.value) })} /></label>
+        <label>Moves in a distraction<input type="number" value={queen.movementCount} onChange={(event) => patch({ ...queen, movementCount: Number(event.target.value) })} /></label>
+      </div>
+      <label>Difficulty<input value={queen.difficultyLabel} onChange={(event) => patch({ ...queen, difficultyLabel: event.target.value })} /></label>
+      <label className="write">Questions per round, five numbers
+        <input value={queen.questionsPerRound.join(", ")} onChange={(event) => patch({ ...queen, questionsPerRound: event.target.value.split(",").map((item) => Number(item.trim())) })} />
+      </label>
+      <label className="write">Touch places, one per line
+        <textarea value={queen.locations.map((location) => location.label).join("\n")} onChange={(event) => patch({ ...queen, locations: event.target.value.split("\n").map((label) => label.trim()).filter(Boolean).map((label) => ({ id: label.toLowerCase().replace(/[^a-z0-9]+/g, "-"), label })) })} />
+      </label>
+      <label className="write">Movements, one per line
+        <textarea className="writing" value={queen.movements.join("\n")} onChange={(event) => patch({ ...queen, movements: event.target.value.split("\n").map((line) => line.trim()).filter(Boolean) })} />
+      </label>
+      <label><input type="checkbox" checked={queen.abilities.deception} onChange={(event) => patch({ ...queen, abilities: { ...queen.abilities, deception: event.target.checked } })} /> The Deception</label>
+      <label><input type="checkbox" checked={queen.abilities.recall} onChange={(event) => patch({ ...queen, abilities: { ...queen.abilities, recall: event.target.checked } })} /> The Recall</label>
+      <label><input type="checkbox" checked={queen.abilities.exchange} onChange={(event) => patch({ ...queen, abilities: { ...queen.abilities, exchange: event.target.checked } })} /> The Exchange</label>
+      <label><input type="checkbox" checked={queen.continueAfterElimination} onChange={(event) => patch({ ...queen, continueAfterElimination: event.target.checked })} /> Marked-out players may keep answering</label>
+      {(["registration", "start", "round2", "deception", "final", "success", "failure"] as const).map((key) => (
+        <label className="write" key={key}>{key}<textarea value={dialogue[key]} onChange={(event) => patch({ ...queen, dialogue: { ...dialogue, [key]: event.target.value } })} /></label>
+      ))}
+    </div>
   );
 }
