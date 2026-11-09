@@ -304,6 +304,12 @@ body.proclaiming.scanlines::after { opacity: 0; }
 .proclamation .dock .ghost { background: transparent; border-color: #111; color: #111; }
 .proclamation .error { color: #9b1c1c; }
 .proclamation .timer { color: #111; }
+.proclamation .listen-title { font-family: var(--font-display); letter-spacing: 0.04em; }
+.proclamation .cue-list { margin: 12px auto 48px; max-width: 38rem; text-align: left; }
+.proclamation .cue { margin: 0 0 28px; }
+.proclamation .cue h2 { margin: 0 0 4px; font-family: var(--font-display); font-size: 22px; font-weight: 500; letter-spacing: 0.04em; }
+.proclamation .cue p { margin: 0 0 8px; color: #333; font-size: 16px; line-height: 1.45; }
+.proclamation .cue audio { width: 100%; }
 .fireworks { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 41; pointer-events: none; }
 
 .owner-nav { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
