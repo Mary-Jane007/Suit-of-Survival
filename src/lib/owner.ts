@@ -219,7 +219,7 @@ async function saveSettings(body: Record<string, unknown>) {
     maxPlayers: Math.max(2, Math.min(16, Number(keep("maxPlayers", 12)))),
     registrationSeconds: Math.max(5, Math.min(120, Number(keep("registrationSeconds", 20)))),
     countdownSeconds: Math.max(3, Math.min(30, Number(keep("countdownSeconds", 5)))),
-    soundEnabled: keep("soundEnabled", false) === true,
+    soundEnabled: keep("soundEnabled", true) !== false,
     handSize: Math.max(1, Math.min(8, Number(keep("handSize", 4)))),
     suits: body.suits ?? current.suits,
     theme: {

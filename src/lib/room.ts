@@ -324,6 +324,7 @@ export async function readRoom(q: Sql, code: string, account: Account | null) {
     announcement,
     card: game
       ? {
+          slug: game.slug,
           suit: game.suit,
           rank: game.rank,
           name: game.name,
@@ -364,7 +365,7 @@ export async function readRoom(q: Sql, code: string, account: Account | null) {
     deck: isHost ? deckRows.map((row) => ({ id: row.id, name: row.name, suit: row.suit, rank: row.rank })) : null,
     pendingNote: armedRisk ? `The next card must be ${String(armedRisk.suit).toUpperCase()}.` : null,
     oath: phase === "oath" ? announcement : null,
-    sound: settings.soundEnabled === true,
+    sound: settings.soundEnabled !== false,
     log: parseJson<string[]>(session.log, []).slice(-8),
   };
 }

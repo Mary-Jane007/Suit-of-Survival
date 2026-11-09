@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { playAnswerLocked, TableSound, unlockSound } from "./table-sound";
 import { CardFace, Nav, Portrait, Timer } from "./ui";
 
 type Room = {
@@ -10,7 +11,7 @@ type Room = {
   you: { id: string; username: string; isHost: boolean; score: number; status: string; hand: { id: string; name: string; suit: string; rank: string }[]; entered: boolean } | null;
   session: { code: string; phase: string; playStyle: string; drawMode: string; paused: boolean; deadline: number | null };
   announcement: { kicker: string; title: string; body: string; targetId?: string } | null;
-  card: { suit: string; rank: string; name: string; title: string; difficulty: string; rules: string; objective: string; materials: string; safety: string } | null;
+  card: { slug: string; suit: string; rank: string; name: string; title: string; difficulty: string; rules: string; objective: string; materials: string; safety: string } | null;
   representative: { name: string; portraitKey: string; accent: string; line: string } | null;
   players: { id: string; username: string; ready: boolean; entered: boolean; score: number; status: string; isHost: boolean; connected: boolean }[];
   play: {
@@ -33,6 +34,7 @@ type Room = {
   history: { name: string; suit: string; rank: string }[];
   pendingNote: string | null;
   log: string[];
+  sound?: boolean;
 };
 
 export function RoomClient({ code, mode }: { code: string; mode: "phone" | "screen" }) {
@@ -70,6 +72,7 @@ export function RoomClient({ code, mode }: { code: string; mode: "phone" | "scre
   }, [room?.card?.name, room?.session.phase, room?.play?.round]);
 
   async function send(body: Record<string, unknown>) {
+    if (body.type === "submit" && mode === "phone") unlockSound();
     const res = await fetch(`/api/room/${code}/action`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -80,6 +83,7 @@ export function RoomClient({ code, mode }: { code: string; mode: "phone" | "scre
     else {
       setRoom(data);
       setError("");
+      if (body.type === "submit" && mode === "phone" && data.sound !== false) playAnswerLocked();
     }
   }
 
@@ -94,12 +98,34 @@ export function RoomClient({ code, mode }: { code: string; mode: "phone" | "scre
 
   const host = Boolean(room.you?.isHost);
   const phase = room.session.phase;
+  const sound = (
+    <TableSound
+      mode={mode}
+      room={{
+        sound: room.sound !== false,
+        code: room.session.code,
+        phase,
+        paused: room.session.paused || room.play?.paused === true,
+        now: room.now,
+        deadline: room.play?.deadline || room.session.deadline,
+        slug: room.card?.slug ?? null,
+        tone: room.result?.tone ?? null,
+        round: room.play?.round ?? 0,
+      }}
+    />
+  );
   if (["detected", "intro", "rules", "registration", "countdown", "results"].includes(phase)) {
-    return <Proclamation room={room} host={host} mode={mode} send={send} error={error} />;
+    return (
+      <>
+        {sound}
+        <Proclamation room={room} host={host} mode={mode} send={send} error={error} />
+      </>
+    );
   }
 
   return (
     <>
+      {sound}
       <Nav />
       <main className={mode === "screen" ? "stage" : "phone"}>
         <div className="meta">

@@ -66,7 +66,7 @@ export const DEFAULT_SETTINGS = {
   maxPlayers: 12,
   registrationSeconds: 20,
   countdownSeconds: 5,
-  soundEnabled: false,
+  soundEnabled: true,
   handSize: 4,
   theme: DEFAULT_THEME,
   suits: {

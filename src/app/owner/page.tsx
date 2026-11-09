@@ -367,7 +367,7 @@ function SettingsForm({ initial, focus }: { initial: Record<string, unknown>; fo
           <label>Registration seconds<input name="registration" type="number" defaultValue={Number(initial.registrationSeconds ?? 20)} /></label>
           <label>Countdown seconds<input name="countdown" type="number" defaultValue={Number(initial.countdownSeconds ?? 5)} /></label>
           <label>Hand size<input name="hand" type="number" defaultValue={Number(initial.handSize ?? 4)} /></label>
-          <label>Sound cues<input name="sound" type="checkbox" defaultChecked={initial.soundEnabled === true} /></label>
+          <label>Sound cues<input name="sound" type="checkbox" defaultChecked={initial.soundEnabled !== false} /></label>
         </div>
       ) : (
         <div className="grid-2">
