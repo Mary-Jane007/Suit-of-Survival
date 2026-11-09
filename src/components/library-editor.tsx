@@ -24,6 +24,8 @@ export type LibraryFields = {
   rounds: number;
   successPoints: number;
   failPoints: number;
+  question: boolean;
+  answers: string;
 };
 
 export function LibraryEditor({ game }: { game: LibraryFields }) {
@@ -92,6 +94,12 @@ export function LibraryEditor({ game }: { game: LibraryFields }) {
         <label>Time limit, seconds<input type="number" min={5} max={3600} value={form.timerSeconds} onChange={(event) => setLimit(event.target.value)} /></label>
       </div>
       <p className="meta">Shown under the card when it is drawn. Use the same player number twice when the card needs an exact count.{form.queen ? " On the Queen of Spades, the time limit is for each question." : ""}</p>
+      {form.question ? (
+        <>
+          <label className="write">Right answer<textarea className="writing" value={form.answers} onChange={(event) => set("answers", event.target.value)} /></label>
+          <p className="meta">One way to say it per line. Players can write the answer in their own words. Close wording still counts when it is the same answer.</p>
+        </>
+      ) : null}
       {form.queen ? <QueenFields form={form} setForm={setForm} /> : null}
       <div className="dock">
         <button className="btn" type="submit">Save</button>

@@ -19,6 +19,7 @@ export function fill(template: string, vars: Record<string, string | number>) {
 
 const SECRET_KEYS = new Set([
   "correctOptionId",
+  "acceptedAnswers",
   "keywordGroups",
   "sequence",
   "doors",

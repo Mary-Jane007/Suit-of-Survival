@@ -238,7 +238,7 @@ function Ending({ room, cleared, name }: { room: Room; cleared: boolean; name: s
           {room.result.rows.map((row) => (
             <li key={row.username}>
               <span>{row.username}</span>
-              <span className={row.success ? "cleared" : "missed"}>{row.success ? "Cleared" : "Not cleared"} · {row.delta >= 0 ? "+" : ""}{row.delta}</span>
+              <span className={row.success ? "cleared" : "missed"}>{row.reason || (row.success ? "Cleared" : "Not cleared")} · {row.delta >= 0 ? "+" : ""}{row.delta}</span>
             </li>
           ))}
         </ul>
@@ -452,6 +452,12 @@ function PlayForm(props: {
           ))}
           {kind === "pair" ? <p className="meta">They recommend {String(input.recommendation || "")}.</p> : null}
         </div>
+      ) : null}
+      {(play.format === "multiple_choice" || play.format === "echo_choice") && kind === "choice" ? (
+        <form className="stack" onSubmit={(event) => { event.preventDefault(); send({ type: "submit", payload: { text: props.text } }); }}>
+          <textarea value={props.text} onChange={(event) => props.setText(event.target.value)} placeholder="Or write the answer in your own words" />
+          <button className="btn" type="submit">Submit answer</button>
+        </form>
       ) : null}
       {play.format === "forehead" && kind === "choice" ? (
         <div className="grid-2">
@@ -703,7 +709,7 @@ function Results({ result }: { result: NonNullable<Room["result"]> }) {
       <p>{result.summary}</p>
       {result.rows.map((row) => (
         <div key={row.username} className="player">
-          <span>{row.username} {row.success ? "cleared" : "missed"}</span>
+          <span>{row.username} · {row.reason || (row.success ? "Cleared" : "Missed")}</span>
           <span className={row.delta >= 0 ? "score-up" : "score-down"}>{row.delta >= 0 ? "+" : ""}{row.delta} · {row.total}</span>
         </div>
       ))}

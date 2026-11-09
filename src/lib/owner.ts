@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Account } from "./auth";
 import { sql } from "./db";
+import { cleanAcceptedAnswers, isQuestionFormat } from "./answers";
 import { cleanQueenSettings } from "./queen";
 import { cleanImage, parseJson, safeColor, DEFAULT_THEME } from "./present";
 import { ready, rankWeight } from "./seed";
@@ -111,6 +112,11 @@ async function saveWriting(body: Record<string, unknown>) {
     definition.successPoints = Math.max(-20, Math.min(50, Number(body.successPoints ?? definition.successPoints ?? 5)));
     definition.failPoints = Math.max(-20, Math.min(50, Number(body.failPoints ?? definition.failPoints ?? -2)));
     definition.rounds = Math.max(1, Math.min(5, Number(body.rounds ?? definition.rounds ?? 5)));
+  }
+  if (isQuestionFormat(existing[0].format) && typeof body.answers === "string") {
+    const answers = cleanAcceptedAnswers(body.answers);
+    if (answers.length) definition.acceptedAnswers = answers;
+    else delete definition.acceptedAnswers;
   }
   const minPlayers = bounded(body.minPlayers, Number(existing[0].min_players ?? 1), 1, 16);
   const maxPlayers = bounded(body.maxPlayers, Number(existing[0].max_players ?? minPlayers), minPlayers, 16);

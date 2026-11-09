@@ -57,6 +57,7 @@ export type GameDefinition = {
   prompt?: string;
   options?: { id: string; label: string }[];
   correctOptionId?: string;
+  acceptedAnswers?: string[];
   keywordGroups?: string[][];
   sequence?: string[];
   sequenceLabels?: Record<string, string>;

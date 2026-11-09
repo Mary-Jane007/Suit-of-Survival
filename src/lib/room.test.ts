@@ -55,6 +55,12 @@ test("two phones and a host clear The Box without trusting the client", async ()
   assert.equal(Number(restored.min_players), Number(detail.min_players));
   assert.equal(Number(restored.max_players), Number(detail.max_players));
   assert.equal(Number(restored.timer_seconds), Number(detail.timer_seconds));
+  await manage(owner, "save-writing", { ...writing, rules: detail.rules, answers: "Box B\nthe middle box" });
+  const hidden = JSON.stringify(await library(box.id));
+  assert.equal(hidden.includes("middle box"), false);
+  const ownerCopy = (await library(box.id, { secrets: true })) as unknown as { definition: { acceptedAnswers?: string[] } };
+  assert.deepEqual(ownerCopy.definition.acceptedAnswers, ["Box B", "the middle box"]);
+  await manage(owner, "save-writing", { ...writing, rules: detail.rules, answers: "" });
   const code = await createSession(owner, { playStyle: "arena", drawMode: "manual", preventDuplicates: true });
   await joinRoom(ada, code);
   await joinRoom(bea, code);
