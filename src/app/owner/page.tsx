@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { primeSound } from "@/components/table-sound";
 import { Nav } from "@/components/ui";
 
 const SECTIONS = ["overview", "games", "cards", "representatives", "players", "sessions", "announcements", "design", "settings"] as const;
@@ -75,6 +77,7 @@ export default function OwnerPage() {
 }
 
 function Overview({ data }: { data: Record<string, unknown> }) {
+  const router = useRouter();
   const active = data.active as { code?: string; phase?: string } | null;
   const activity = (data.activity as { message: string }[]) ?? [];
   return (
@@ -86,7 +89,7 @@ function Overview({ data }: { data: Record<string, unknown> }) {
         <article className="panel"><span className="meta">Cards collected</span><h2>{String(data.clears)}</h2></article>
       </div>
       <p>{active?.code ? `Live room ${active.code} is ${active.phase}.` : "No arena is open."}</p>
-      {active?.code ? <a className="btn" href={`/screen/${active.code}`}>Open the live screen</a> : <a className="ghost" href="/enter">Open an arena</a>}
+      {active?.code ? <button className="btn" type="button" onClick={() => { primeSound(); router.push(`/screen/${active.code}`); }}>Open the live screen</button> : <a className="ghost" href="/enter">Open an arena</a>}
       <div className="panel">{activity.map((item, index) => <p key={index}>{item.message}</p>)}</div>
     </section>
   );

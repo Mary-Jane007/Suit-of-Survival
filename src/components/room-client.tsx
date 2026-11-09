@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { playAnswerLocked, TableSound, unlockSound } from "./table-sound";
+import { playAnswerLocked, primeSound, TableSound } from "./table-sound";
 import { CardFace, Nav, Portrait, Timer } from "./ui";
 
 type Room = {
@@ -72,7 +72,7 @@ export function RoomClient({ code, mode }: { code: string; mode: "phone" | "scre
   }, [room?.card?.name, room?.session.phase, room?.play?.round]);
 
   async function send(body: Record<string, unknown>) {
-    if (body.type === "submit" && mode === "phone") unlockSound();
+    if (mode === "screen" || body.type === "submit") primeSound();
     const res = await fetch(`/api/room/${code}/action`, {
       method: "POST",
       headers: { "content-type": "application/json" },

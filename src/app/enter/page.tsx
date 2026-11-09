@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { primeSound } from "@/components/table-sound";
 import { Nav } from "@/components/ui";
 
 type Account = { username: string; role: string };
@@ -11,6 +13,7 @@ export default function EnterPage() {
   const [error, setError] = useState("");
   const [playStyle, setPlayStyle] = useState("arena");
   const [drawMode, setDrawMode] = useState("random");
+  const router = useRouter();
 
   useEffect(() => {
     fetch("/api/me")
@@ -29,11 +32,12 @@ export default function EnterPage() {
   }
 
   async function openArena() {
+    primeSound();
     setError("");
     const session = await fetch("/api/sessions", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ playStyle, drawMode, preventDuplicates: true }) });
     const room = await session.json();
     if (!session.ok) return setError(room.error || "Could not open a room.");
-    location.href = `/screen/${room.code}`;
+    router.push(`/screen/${room.code}`);
   }
 
   return (
