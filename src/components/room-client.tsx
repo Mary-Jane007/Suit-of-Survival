@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CardFace, Nav, Portrait, Timer } from "./ui";
 
 type Room = {
@@ -92,9 +92,11 @@ export function RoomClient({ code, mode }: { code: string; mode: "phone" | "scre
     );
   }
 
-  const host = room.you?.isHost;
+  const host = Boolean(room.you?.isHost);
   const phase = room.session.phase;
-  const showCard = ["detected", "intro", "rules", "registration", "countdown", "playing", "results", "oath"].includes(phase);
+  if (["detected", "intro", "rules", "registration", "countdown", "results"].includes(phase)) {
+    return <Proclamation room={room} host={host} mode={mode} send={send} error={error} />;
+  }
 
   return (
     <>
@@ -113,10 +115,145 @@ export function RoomClient({ code, mode }: { code: string; mode: "phone" | "scre
         {host && mode === "phone" ? <HostDock room={room} send={send} /> : null}
         <p className="error">{error}</p>
         <p className="safety">{room.card?.safety || room.safety}</p>
-        {showCard ? null : null}
       </main>
     </>
   );
+}
+
+const START = new Set(["detected", "intro", "rules", "registration", "countdown"]);
+
+function Proclamation({ room, host, mode, send, error }: { room: Room; host: boolean; mode: "phone" | "screen"; send: (body: Record<string, unknown>) => void; error: string }) {
+  const phase = room.session.phase;
+  const ending = phase === "results";
+  const tone = room.result?.tone;
+  const cleared = tone === "success";
+  const name = room.card?.name || "GAME";
+  useEffect(() => {
+    document.body.classList.add("proclaiming");
+    return () => document.body.classList.remove("proclaiming");
+  }, []);
+  return (
+    <section className="proclamation">
+      {ending && cleared ? <Fireworks /> : null}
+      <div className="sheet">
+        {ending ? <Ending room={room} cleared={cleared} name={name} /> : <Opening room={room} name={name} />}
+        {START.has(phase) && (phase === "countdown" || phase === "registration") ? (
+          <Timer deadline={room.session.deadline} now={room.now} paused={room.session.paused} />
+        ) : null}
+        <p className="error">{error}</p>
+        <p className="quiet">{room.card?.safety || room.safety}</p>
+      </div>
+      <div className="dock">
+        {host && START.has(phase) ? <button className="btn" onClick={() => send({ type: "advance" })}>Continue</button> : null}
+        {host && phase === "registration" ? <button className="ghost" onClick={() => send({ type: "enter_all" })}>Enter everyone</button> : null}
+        {mode === "phone" && room.you && (phase === "registration" || phase === "rules") && !room.you.entered ? (
+          <button className="btn" onClick={() => send({ type: "enter" })}>Step in</button>
+        ) : null}
+        {mode === "phone" && !room.you && (phase === "registration" || phase === "rules") ? <a className="btn" href={`/account?mode=login&next=${encodeURIComponent(`/room/${room.session.code}`)}`}>Log in to step in</a> : null}
+        {host && ending ? <button className="btn" onClick={() => send({ type: "continue" })}>Between cards</button> : null}
+      </div>
+    </section>
+  );
+}
+
+function Opening({ room, name }: { room: Room; name: string }) {
+  return (
+    <>
+      <p className="jp">ようこそ</p>
+      <p className="jp">プレイヤーの皆様</p>
+      <p className="jp">まもなく</p>
+      <h1>【{name}】</h1>
+      <p className="jp">が開始します</p>
+      {room.card ? <p className="quiet">{room.card.title} · Difficulty {room.card.difficulty}</p> : null}
+      <div className="rules">
+        <p className="quiet">Rules</p>
+        <p>{room.card?.rules}</p>
+        {room.card?.objective ? <p>{room.card.objective}</p> : null}
+      </div>
+    </>
+  );
+}
+
+function Ending({ room, cleared, name }: { room: Room; cleared: boolean; name: string }) {
+  const failed = room.result?.tone === "game_over";
+  return (
+    <>
+      <h1>【{name}】</h1>
+      <p className="jp">{cleared ? "ゲームクリア" : failed ? "ゲームオーバー" : "結果"}</p>
+      <p>{cleared ? "Successfully completed." : failed ? "Not completed." : "Some cleared. Some did not."}</p>
+      {room.result ? (
+        <ul className="outcome">
+          {room.result.rows.map((row) => (
+            <li key={row.username}>
+              <span>{row.username}</span>
+              <span className={row.success ? "cleared" : "missed"}>{row.success ? "Cleared" : "Not cleared"} · {row.delta >= 0 ? "+" : ""}{row.delta}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {room.result?.summary ? <p>{room.result.summary}</p> : null}
+    </>
+  );
+}
+
+function Fireworks() {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const sparks: { x: number; y: number; vx: number; vy: number; life: number; color: string; size: number }[] = [];
+    const colors = ["#c4161c", "#e6b325", "#2563eb", "#7c3aed", "#ea580c", "#111111"];
+    let frame = 0;
+    let raf = 0;
+    function resize() {
+      canvas!.width = window.innerWidth;
+      canvas!.height = window.innerHeight;
+    }
+    function burst(x: number, y: number) {
+      const color = colors[Math.floor(Math.random() * colors.length)];
+      const count = 72;
+      for (let i = 0; i < count; i++) {
+        const angle = (Math.PI * 2 * i) / count + Math.random() * 0.08;
+        const speed = 1.6 + Math.random() * 3.4;
+        sparks.push({ x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, life: 1, color, size: 1.5 + Math.random() * 2.2 });
+      }
+    }
+    resize();
+    burst(window.innerWidth * 0.3, window.innerHeight * 0.28);
+    burst(window.innerWidth * 0.72, window.innerHeight * 0.22);
+    window.addEventListener("resize", resize);
+    const tick = () => {
+      frame += 1;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (frame % 36 === 0) burst(canvas.width * (0.18 + Math.random() * 0.64), canvas.height * (0.12 + Math.random() * 0.38));
+      for (let i = sparks.length - 1; i >= 0; i--) {
+        const spark = sparks[i];
+        spark.x += spark.vx;
+        spark.y += spark.vy;
+        spark.vy += 0.035;
+        spark.vx *= 0.992;
+        spark.life -= 0.012;
+        if (spark.life <= 0) {
+          sparks.splice(i, 1);
+          continue;
+        }
+        ctx.globalAlpha = Math.max(spark.life, 0);
+        ctx.fillStyle = spark.color;
+        ctx.fillRect(spark.x, spark.y, spark.size, spark.size);
+      }
+      ctx.globalAlpha = 1;
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", resize);
+    };
+  }, []);
+  return <canvas ref={ref} className="fireworks" aria-hidden="true" />;
 }
 
 function Screen({ room, flipped, host, send }: { room: Room; flipped: boolean; host: boolean; send: (body: Record<string, unknown>) => void }) {

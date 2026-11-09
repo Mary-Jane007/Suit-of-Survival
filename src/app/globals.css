@@ -254,6 +254,58 @@ textarea { min-height: 110px; resize: vertical; }
 .score-up { color: #b7f0c2; }
 .score-down { color: #ffb4b4; }
 
+.proclamation {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  background: #f4f4f2;
+  color: #111;
+}
+body.proclaiming.scanlines::after { opacity: 0; }
+.proclamation .sheet {
+  width: min(720px, calc(100% - 48px));
+  margin: auto;
+  padding: 56px 0 128px;
+  text-align: center;
+}
+.proclamation .jp {
+  margin: 0;
+  font-family: "WenQuanYi Micro Hei", "Droid Sans Fallback", sans-serif;
+  font-size: clamp(20px, 2.6vw, 30px);
+  line-height: 1.85;
+  font-weight: 400;
+}
+.proclamation h1 {
+  margin: 18px 0 8px;
+  font-family: "WenQuanYi Micro Hei", "Droid Sans Fallback", sans-serif;
+  font-size: clamp(34px, 6vw, 68px);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1.15;
+}
+.proclamation .rules {
+  margin: 36px auto 0;
+  max-width: 38rem;
+  text-align: left;
+  font-size: 18px;
+  line-height: 1.55;
+}
+.proclamation .rules p { margin: 0 0 12px; }
+.proclamation .quiet { color: #444; letter-spacing: 0.14em; text-transform: uppercase; font-size: 12px; }
+.proclamation .outcome { list-style: none; padding: 0; margin: 28px auto 0; max-width: 28rem; text-align: left; }
+.proclamation .outcome li { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid #ccc; padding: 10px 0; }
+.proclamation .cleared { color: #0d6b32; }
+.proclamation .missed { color: #9b1c1c; }
+.proclamation .dock { position: fixed; left: 0; right: 0; bottom: 28px; justify-content: center; z-index: 42; }
+.proclamation .dock .btn { background: #111; border-color: #111; color: #fff; }
+.proclamation .dock .ghost { background: transparent; border-color: #111; color: #111; }
+.proclamation .error { color: #9b1c1c; }
+.proclamation .timer { color: #111; }
+.fireworks { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 41; pointer-events: none; }
+
 .owner-nav { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
 .owner-nav button[aria-current="true"] { border-color: var(--red); color: var(--red); }
 
