@@ -20,6 +20,8 @@ test("two phones and a host clear The Box without trusting the client", async ()
   assert.equal(beaSignup.role, "player");
   const ada = (await accountFromToken(adaSignup.token))!;
   const bea = (await accountFromToken(beaSignup.token))!;
+  const refused = await createSession(ada, {}).catch((error: Error) => error);
+  assert.equal(refused instanceof Error, true);
   const games = (await library()) as { id: string; name: string }[];
   assert.equal(games.length, 52);
   const box = games.find((game) => game.name === "The Box");

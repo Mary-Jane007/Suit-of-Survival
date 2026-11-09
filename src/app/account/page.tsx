@@ -44,7 +44,7 @@ export default function AccountPage() {
         <section className="panel stack">
           <div className="kicker">{mode === "signup" ? "Sign up" : "Log in"}</div>
           <h1 style={{ fontFamily: "var(--font-display)", margin: 0 }}>{mode === "signup" ? "Take a name" : "Return to your cards"}</h1>
-          <p className="meta">The first account holds the table. Every account after that is a player. Logging in brings back the same cards, scores, and achievements.</p>
+          <p className="meta">One account is the owner and can edit every game, card, and rule. Every other signup is a player. Logging in brings back the same cards, scores, and achievements.</p>
           <div className="dock">
             <button className={mode === "signup" ? "btn" : "ghost"} type="button" onClick={() => { setMode("signup"); setError(""); }}>Sign up</button>
             <button className={mode === "login" ? "btn" : "ghost"} type="button" onClick={() => { setMode("login"); setError(""); }}>Log in</button>

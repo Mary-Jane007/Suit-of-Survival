@@ -9,6 +9,7 @@ export default function OwnerPage() {
   const [section, setSection] = useState<(typeof SECTIONS)[number]>("overview");
   const [data, setData] = useState<unknown>(null);
   const [error, setError] = useState("");
+  const [locked, setLocked] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
 
   async function load(action: string, extra: Record<string, unknown> = {}) {
@@ -16,10 +17,12 @@ export default function OwnerPage() {
     const body = await res.json();
     if (!res.ok) {
       setError(body.error || "Owner only.");
+      setLocked(body.error === "Owner only.");
       setData(null);
       return;
     }
     setError("");
+    setLocked(false);
     setData(body);
   }
 
@@ -27,9 +30,12 @@ export default function OwnerPage() {
     if (section === "overview") {
       fetch("/api/owner").then(async (res) => {
         const body = await res.json();
-        if (!res.ok) setError(body.error || "Owner only.");
-        else {
+        if (!res.ok) {
+          setError(body.error || "Owner only.");
+          setLocked(body.error === "Owner only.");
+        } else {
           setError("");
+          setLocked(false);
           setData(body);
         }
       });
@@ -50,7 +56,9 @@ export default function OwnerPage() {
             <button key={item} className="ghost" aria-current={section === item} onClick={() => setSection(item)}>{item}</button>
           ))}
         </div>
+        <p className="meta">Only the owner can edit games, cards, rules, representatives, and the arena. Players keep their own progress and cannot change the table.</p>
         <p className="error">{error}</p>
+        {locked ? <p>Sign in with the owner account to edit games, cards, and rules.</p> : null}
         {section === "overview" && data && !error ? <Overview data={data as Record<string, unknown>} /> : null}
         {section === "games" && Array.isArray(data) ? (
           editing ? <GameEditor game={editing} onDone={() => { setEditing(null); load("games"); }} /> : <GameList games={data as Record<string, unknown>[]} onEdit={async (id) => { const res = await fetch("/api/owner", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "game", id }) }); setEditing(await res.json()); }} onNew={() => setEditing({ status: "draft", format: "multiple_choice", suit: "diamonds", rank: "2", minPlayers: 1, maxPlayers: 8, timerSeconds: 60, rounds: 1, definition: { format: "multiple_choice", successPoints: 5, options: [{ id: "a", label: "A" }, { id: "b", label: "B" }], correctOptionId: "a", prompt: "" } })} />

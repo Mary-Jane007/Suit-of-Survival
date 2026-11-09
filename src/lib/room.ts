@@ -630,8 +630,8 @@ async function pushLog(q: Sql, session: SessionRow, message: string) {
   await logLine(q, String(session.id), message);
 }
 
-function hostOnly(account: Account, session: SessionRow) {
-  if (account.role !== "owner" && account.id !== session.host_user_id) throw new Error("Only the owner can do that.");
+function hostOnly(account: Account, _session: SessionRow) {
+  if (account.role !== "owner") throw new Error("Only the owner can do that.");
 }
 
 export async function act(account: Account, code: string, action: Record<string, unknown>) {

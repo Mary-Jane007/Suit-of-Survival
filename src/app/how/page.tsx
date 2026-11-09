@@ -7,7 +7,7 @@ export default function HowPage() {
       <main className="wide stack">
         <p className="kicker">How the night works</p>
         <h1 style={{ fontFamily: "var(--font-display)", fontSize: "clamp(48px, 8vw, 92px)", margin: 0 }}>One screen. Every phone.</h1>
-        <p>The first account is the owner. Everyone who signs up after that is a player. Log in with the same name and password and the cards, scores, and achievements are still there. Put the owner’s browser on a television. Everyone else opens the room code on a phone. The screen is the representative. The phones are how you answer, vote, and choose. You can stop whenever you want. Points, benching, and the words life, end, wolf, and failure are digital. Nothing here asks for a stunt, a secret, or a punishment.</p>
+        <p>One account is the owner. That account edits the games, cards, rules, representatives, and the arena. Everyone who signs up after that is a player. Players join with a room code and keep their own cards and scores. They cannot change the game. Put the owner’s browser on a television. Everyone else opens the room code on a phone. The screen is the representative. The phones are how you answer, vote, and choose. You can stop whenever you want. Points, benching, and the words life, end, wolf, and failure are digital. Nothing here asks for a stunt, a secret, or a punishment.</p>
         <div className="grid-2">
           <article className="panel"><h2>Spades</h2><p>Memory, observation, and optional seated movement. The phone is the score. Standing is never required.</p></article>
           <article className="panel"><h2>Hearts</h2><p>Trust, bluff, and agreement. Lie about a card if you like. Do not use a real secret.</p></article>
