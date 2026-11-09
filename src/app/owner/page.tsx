@@ -28,6 +28,17 @@ export default function OwnerPage() {
     setData(body);
   }
 
+  async function openGame(id: string) {
+    const res = await fetch("/api/owner", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "game", id }) });
+    const body = await res.json();
+    if (!res.ok) {
+      setError(body.error || "Owner only.");
+      setLocked(body.error === "Owner only.");
+      return;
+    }
+    setEditing(body);
+  }
+
   useEffect(() => {
     if (section === "overview") {
       fetch("/api/owner").then(async (res) => {
@@ -63,7 +74,7 @@ export default function OwnerPage() {
         {locked ? <p>Sign in with the owner account to edit games, cards, and rules.</p> : null}
         {section === "overview" && data && !error ? <Overview data={data as Record<string, unknown>} /> : null}
         {section === "games" && Array.isArray(data) ? (
-          editing ? <GameEditor game={editing} onDone={() => { setEditing(null); load("games"); }} /> : <GameList games={data as Record<string, unknown>[]} onEdit={async (id) => { const res = await fetch("/api/owner", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "game", id }) }); setEditing(await res.json()); }} onNew={() => setEditing({ status: "draft", format: "multiple_choice", suit: "diamonds", rank: "2", minPlayers: 1, maxPlayers: 8, timerSeconds: 60, rounds: 1, definition: { format: "multiple_choice", successPoints: 5, options: [{ id: "a", label: "A" }, { id: "b", label: "B" }], correctOptionId: "a", prompt: "" } })} />
+          editing ? <GameEditor game={editing} onDone={() => { setEditing(null); load("games"); }} /> : <GameList games={data as Record<string, unknown>[]} onEdit={openGame} onNew={() => setEditing({ status: "draft", format: "multiple_choice", suit: "diamonds", rank: "2", minPlayers: 1, maxPlayers: 8, timerSeconds: 60, rounds: 1, definition: { format: "multiple_choice", successPoints: 5, options: [{ id: "a", label: "A" }, { id: "b", label: "B" }], correctOptionId: "a", prompt: "" } })} />
         ) : null}
         {section === "cards" && Array.isArray(data) ? <Cards cards={data as Record<string, unknown>[]} reload={() => load("cards")} /> : null}
         {section === "representatives" && Array.isArray(data) ? <Reps reps={data as Record<string, unknown>[]} reload={() => load("representatives")} /> : null}
@@ -180,7 +191,12 @@ function GameEditor({ game, onDone }: { game: Record<string, unknown>; onDone: (
         <label>Rounds<input type="number" value={Number(form.rounds ?? 1)} onChange={(event) => set("rounds", Number(event.target.value))} /></label>
       </div>
       <label>Description<textarea value={String(form.description ?? "")} onChange={(event) => set("description", event.target.value)} /></label>
-      <label>Rules<textarea value={String(form.rules ?? "")} onChange={(event) => set("rules", event.target.value)} /></label>
+      <label className="write">Rules
+        <textarea className="writing" value={String(form.rules ?? "")} onChange={(event) => set("rules", event.target.value)} />
+      </label>
+      <label className="write">Original notes
+        <textarea className="writing" value={String(form.rules_original ?? "")} onChange={(event) => set("rules_original", event.target.value)} />
+      </label>
       <label>Instructions<textarea value={String(form.instructions ?? "")} onChange={(event) => set("instructions", event.target.value)} /></label>
       <label>Objective<input value={String(form.objective ?? "")} onChange={(event) => set("objective", event.target.value)} /></label>
       <label>Clear condition<input value={String(form.win_condition ?? "")} onChange={(event) => set("win_condition", event.target.value)} /></label>
@@ -191,11 +207,11 @@ function GameEditor({ game, onDone }: { game: Record<string, unknown>; onDone: (
       <label>Definition
         <textarea value={String(form.definitionText ?? "")} onChange={(event) => set("definitionText", event.target.value)} style={{ minHeight: 220 }} />
       </label>
-      <p className="meta">Options, answers, sequences, and point values live in the definition. The arena reads that record. It does not keep a private copy in the page.</p>
+      <p className="meta">The rules box is what players read. The definition below is the scoring record: options, answers, and point values.</p>
       <p className="error">{error}</p>
       <div className="dock">
-        <button className="btn" type="submit">Save draft</button>
-        <button className="ghost" type="button" onClick={() => save("published")}>Publish</button>
+        <button className="btn" type="submit">{form.status === "published" ? "Save" : "Save draft"}</button>
+        {form.status === "published" ? null : <button className="ghost" type="button" onClick={() => save("published")}>Publish</button>}
         {form.id != null ? <button className="ghost" type="button" onClick={async () => { await fetch("/api/owner", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "duplicate-game", id: form.id }) }); onDone(); }}>Duplicate</button> : null}
         {form.id != null ? <button className="ghost hot" type="button" onClick={async () => { await fetch("/api/owner", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "delete-game", id: form.id }) }); onDone(); }}>Delete</button> : null}
         <button className="ghost" type="button" onClick={onDone}>Back</button>

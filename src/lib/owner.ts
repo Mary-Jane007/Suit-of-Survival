@@ -52,6 +52,7 @@ export async function manage(account: Account | null, action: string, body: Reco
   if (action === "duplicate-game") return duplicateGame(String(body.id ?? ""));
   if (action === "delete-game") return deleteGame(String(body.id ?? ""));
   if (action === "cards") return sql("select * from cards order by suit, difficulty");
+  if (action === "save-writing") return saveWriting(body);
   if (action === "save-card") return saveCard(body);
   if (action === "representatives") return sql("select * from representatives order by name");
   if (action === "save-representative") return saveRep(body);
@@ -86,6 +87,32 @@ export async function manage(account: Account | null, action: string, body: Reco
   }
   if (action === "save-settings") return saveSettings(body);
   throw new Error("Unknown owner action.");
+}
+
+async function saveWriting(body: Record<string, unknown>) {
+  const id = text(body.id, 80);
+  if (!id) throw new Error("Choose a card.");
+  const updated = await sql(
+    `update games set name=$2, description=$3, rules=$4, rules_original=$5, instructions=$6, objective=$7,
+      win_condition=$8, fail_condition=$9, scoring_summary=$10, materials=$11, safety_note=$12, updated_at=now()
+     where id=$1 and status='published' returning id`,
+    [
+      id,
+      text(body.name, 80) || "Untitled challenge",
+      text(body.description, 400),
+      text(body.rules, 4000),
+      text(body.rulesOriginal, 4000),
+      text(body.instructions, 2000),
+      text(body.objective, 400),
+      text(body.win, 400),
+      text(body.fail, 400),
+      text(body.scoring, 400),
+      text(body.materials, 200),
+      text(body.safety, 400),
+    ],
+  );
+  if (!updated[0]) throw new Error("That card is not in the library.");
+  return { id };
 }
 
 async function saveGame(body: Record<string, unknown>) {

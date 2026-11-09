@@ -26,6 +26,27 @@ test("two phones and a host clear The Box without trusting the client", async ()
   assert.equal(games.length, 52);
   const box = games.find((game) => game.name === "The Box");
   assert.ok(box);
+  const { manage } = await import("./owner");
+  const detail = (await library(box.id)) as unknown as Record<string, string>;
+  const refusedWrite = await manage(ada, "save-writing", { id: box.id, name: "The Box", rules: "Stolen." }).catch((error: Error) => error);
+  assert.equal(refusedWrite instanceof Error, true);
+  const writing = {
+    id: box.id,
+    name: detail.name,
+    description: detail.description,
+    rulesOriginal: detail.rules_original,
+    instructions: detail.instructions,
+    objective: detail.objective,
+    win: detail.win_condition,
+    fail: detail.fail_condition,
+    scoring: detail.scoring_summary,
+    materials: detail.materials,
+    safety: detail.safety_note,
+  };
+  await manage(owner, "save-writing", { ...writing, rules: "A rule written in the library." });
+  const written = (await library(box.id)) as unknown as { rules: string };
+  assert.equal(written.rules, "A rule written in the library.");
+  await manage(owner, "save-writing", { ...writing, rules: detail.rules });
   const code = await createSession(owner, { playStyle: "arena", drawMode: "manual", preventDuplicates: true });
   await joinRoom(ada, code);
   await joinRoom(bea, code);
