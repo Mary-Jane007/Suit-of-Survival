@@ -337,6 +337,7 @@ export async function readRoom(q: Sql, code: string, account: Account | null, su
           safety: game.safety_note,
           minPlayers: Number(game.min_players ?? 1),
           maxPlayers: Number(game.max_players ?? 1),
+          timerSeconds: Number(game.timer_seconds ?? 60),
         }
       : null,
     representative: game

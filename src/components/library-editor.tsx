@@ -37,6 +37,13 @@ export function LibraryEditor({ game }: { game: LibraryFields }) {
     setForm((current) => ({ ...current, [key]: value }));
   }
 
+  function setLimit(raw: string) {
+    setSaved(false);
+    const parsed = Math.round(Number(raw));
+    const next = Number.isFinite(parsed) ? Math.max(5, Math.min(3600, parsed)) : 5;
+    setForm((current) => ({ ...current, timerSeconds: next }));
+  }
+
   function setCount(key: "minPlayers" | "maxPlayers", raw: string) {
     setSaved(false);
     const parsed = Math.round(Number(raw));
@@ -82,8 +89,9 @@ export function LibraryEditor({ game }: { game: LibraryFields }) {
       <div className="grid-2">
         <label>Minimum players<input type="number" min={1} max={16} value={form.minPlayers} onChange={(event) => setCount("minPlayers", event.target.value)} /></label>
         <label>Maximum players<input type="number" min={1} max={16} value={form.maxPlayers} onChange={(event) => setCount("maxPlayers", event.target.value)} /></label>
+        <label>Time limit, seconds<input type="number" min={5} max={3600} value={form.timerSeconds} onChange={(event) => setLimit(event.target.value)} /></label>
       </div>
-      <p className="meta">Shown under the card when it is drawn. Use the same number twice when the card needs an exact count.</p>
+      <p className="meta">Shown under the card when it is drawn. Use the same player number twice when the card needs an exact count.{form.queen ? " On the Queen of Spades, the time limit is for each question." : ""}</p>
       {form.queen ? <QueenFields form={form} setForm={setForm} /> : null}
       <div className="dock">
         <button className="btn" type="submit">Save</button>
@@ -106,7 +114,6 @@ function QueenFields({ form, setForm }: { form: LibraryFields; setForm: (value: 
       <p>Queen of Spades. These settings stay with the card.</p>
       <div className="grid-2">
         <label>Rounds<input type="number" value={form.rounds} onChange={(event) => setForm({ ...form, rounds: Number(event.target.value) })} /></label>
-        <label>Seconds per question<input type="number" value={form.timerSeconds} onChange={(event) => setForm({ ...form, timerSeconds: Number(event.target.value) })} /></label>
         <label>Points for a correct answer<input type="number" value={form.successPoints} onChange={(event) => setForm({ ...form, successPoints: Number(event.target.value) })} /></label>
         <label>Points for a miss<input type="number" value={form.failPoints} onChange={(event) => setForm({ ...form, failPoints: Number(event.target.value) })} /></label>
         <label>Allowed mistakes<input type="number" value={queen.allowedMistakes} onChange={(event) => patch({ ...queen, allowedMistakes: Number(event.target.value) })} /></label>

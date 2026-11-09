@@ -11,7 +11,7 @@ type Room = {
   you: { id: string; username: string; isHost: boolean; score: number; status: string; hand: { id: string; name: string; suit: string; rank: string }[]; entered: boolean } | null;
   session: { code: string; phase: string; playStyle: string; drawMode: string; paused: boolean; deadline: number | null };
   announcement: { kicker: string; title: string; body: string; targetId?: string } | null;
-  card: { slug: string; suit: string; rank: string; name: string; title: string; difficulty: string; rules: string; objective: string; materials: string; safety: string; minPlayers: number; maxPlayers: number } | null;
+  card: { slug: string; suit: string; rank: string; name: string; title: string; difficulty: string; rules: string; objective: string; materials: string; safety: string; minPlayers: number; maxPlayers: number; timerSeconds: number } | null;
   representative: { name: string; portraitKey: string; accent: string; line: string } | null;
   players: { id: string; username: string; ready: boolean; entered: boolean; score: number; status: string; isHost: boolean; connected: boolean }[];
   play: {
@@ -190,12 +190,18 @@ function playerNeed(card: { minPlayers: number; maxPlayers: number }) {
   return `${min}–${max} players`;
 }
 
+function timeLimit(card: { timerSeconds?: number }) {
+  const seconds = Number(card.timerSeconds);
+  if (!Number.isFinite(seconds) || seconds <= 0) return "";
+  return seconds === 1 ? "1 second" : `${seconds} seconds`;
+}
+
 function DrawnCard({ card, flipped }: { card: NonNullable<Room["card"]>; flipped: boolean }) {
-  const need = playerNeed(card);
+  const line = [playerNeed(card), timeLimit(card)].filter(Boolean).join(" · ");
   return (
     <div className="drawn-card">
       <CardFace suit={card.suit} rank={card.rank} name={card.name} flipped={flipped} />
-      {need ? <p className="card-need">{need}</p> : null}
+      {line ? <p className="card-need">{line}</p> : null}
     </div>
   );
 }
