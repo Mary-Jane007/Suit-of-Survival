@@ -1,3 +1,4 @@
+import { acceptedFor, answerIsRight, answerMatches } from "./answers";
 import { initQueen, queenHost, queenSubmit, queenTick, queenView } from "./queen";
 import type {
   CardName,
@@ -257,7 +258,7 @@ function scoreIndividuals(rt: Runtime, correct: (payload: Record<string, unknown
   for (const player of activePlayers(rt)) {
     const payload = current[player.id];
     const ok = payload ? correct(payload) : false;
-    give(rt, player.id, ok ? win : lose, ok, ok ? why : payload ? "Incorrect." : "No answer in time.");
+    give(rt, player.id, ok ? win : lose, ok, ok ? why : payload ? "Not this time." : "No answer in time.");
   }
   finish(rt, toneFrom(rt), rt.feedback || why);
 }
@@ -266,43 +267,42 @@ function resolveStandard(rt: Runtime, now: number) {
   const format = rt.format;
   const def = rt.config;
   if (format === "multiple_choice") {
-    const correctId = String(def.correctOptionId ?? "");
-    scoreIndividuals(rt, (payload) => payload.choice === correctId, "Answer recorded.");
-    rt.summary = "The choices are locked.";
+    scoreIndividuals(rt, (payload) => answerIsRight(def, payload), "Correct.");
+    rt.summary = "The answers are locked.";
     return;
   }
   if (format === "keywords") {
     const groups = def.keywordGroups ?? [];
-    scoreIndividuals(rt, (payload) => hitKeywords(String(payload.text ?? ""), groups), "The pattern matches.");
+    const written = def.acceptedAnswers ?? [];
+    scoreIndividuals(rt, (payload) => written.length ? answerIsRight(def, payload) : hitKeywords(String(payload.text ?? ""), groups), "Correct.");
     rt.summary = "The written answers are locked.";
     return;
   }
   if (format === "echo_choice") {
-    const correctId = String(def.correctOptionId ?? "");
     const current = bag(rt);
-    const ok = activePlayers(rt).every((player) => current[player.id]?.choice === correctId);
+    const ok = activePlayers(rt).every((player) => current[player.id] && answerIsRight(def, current[player.id]));
     const win = points(def, "successPoints", 6);
-    for (const player of activePlayers(rt)) give(rt, player.id, ok ? win : 0, ok, ok ? "The group matched." : "The group did not match.");
-    finish(rt, ok ? "success" : "fail", ok ? "One shared answer. Cleared." : "The table did not land on the same correct answer.");
+    for (const player of activePlayers(rt)) give(rt, player.id, ok ? win : 0, ok, ok ? "Correct." : "Not this time.");
+    finish(rt, ok ? "success" : "fail", ok ? "One shared answer. Cleared." : "The table did not land on the right answer.");
     return;
   }
   if (format === "split_clue") {
-    const aliases = ((rt.secret.aliases as string[]) ?? []).map(normalizeText);
+    const accepted = acceptedFor(def);
     const current = bag(rt);
-    const ok = activePlayers(rt).every((player) => aliases.includes(normalizeText(String(current[player.id]?.text ?? ""))));
+    const ok = activePlayers(rt).every((player) => answerMatches(String(current[player.id]?.text ?? ""), accepted));
     const win = points(def, "successPoints", 8);
-    for (const player of activePlayers(rt)) give(rt, player.id, ok ? win : 0, ok, ok ? "The fragments formed the answer." : "The fragments did not meet.");
+    for (const player of activePlayers(rt)) give(rt, player.id, ok ? win : 0, ok, ok ? "Correct." : "Not this time.");
     finish(rt, ok ? "success" : "fail", ok ? "The clue is whole." : "The clue stayed broken.");
     return;
   }
   if (format === "unanimous") {
     const current = bag(rt);
-    const values = activePlayers(rt).map((player) => normalizeText(String(current[player.id]?.text ?? current[player.id]?.number ?? "")));
-    const must = def.mustEqual ? normalizeText(def.mustEqual) : "";
-    const agreed = values.length > 0 && values.every((value) => value.length > 0 && value === values[0]);
-    const ok = agreed && (!must || values[0] === must);
+    const values = activePlayers(rt).map((player) => String(current[player.id]?.text ?? current[player.id]?.number ?? ""));
+    const accepted = acceptedFor(def);
+    const first = values.find((value) => value.trim()) ?? "";
+    const ok = values.length > 0 && values.every((value) => answerMatches(value, accepted.length ? accepted : [first]));
     const win = points(def, "successPoints", 6);
-    for (const player of activePlayers(rt)) give(rt, player.id, ok ? win : 0, ok, ok ? "The table agreed." : "No agreement.");
+    for (const player of activePlayers(rt)) give(rt, player.id, ok ? win : 0, ok, ok ? "Correct." : "Not this time.");
     finish(rt, ok ? "success" : "fail", ok ? "Spoken as one." : "The answers diverged.");
     return;
   }
@@ -345,6 +345,11 @@ function resolveStandard(rt: Runtime, now: number) {
     return;
   }
   if (format === "host_judge") {
+    if ((def.acceptedAnswers ?? []).some((answer) => answer.trim())) {
+      scoreIndividuals(rt, (payload) => answerIsRight(def, payload), "Correct.");
+      rt.summary = "The written answers are locked.";
+      return;
+    }
     rt.extra.timeUp = true;
     rt.log.push("The clock has run out. The representative is waiting for a judgment.");
     rt.deadline = null;
@@ -567,8 +572,12 @@ function applySubmit(rt: Runtime, player: PlayerRef, payload: SubmitPayload, now
   switch (rt.format) {
     case "multiple_choice":
     case "echo_choice": {
-      if (!payload.choice) return "Choose an option.";
-      current[player.id] = { choice: payload.choice };
+      const text = String(payload.text ?? "").trim();
+      const choice = String(payload.choice ?? "");
+      if (!choice && (text.length < 1 || text.length > 500)) return "Choose an option or write an answer.";
+      if (choice && !(rt.config.options ?? []).some((option) => option.id === choice)) return "Choose an option.";
+      if (text.length > 500) return "That answer is too long.";
+      current[player.id] = text ? { text } : { choice };
       if (everyoneSubmitted(rt)) resolveStandard(rt, now);
       return null;
     }
@@ -577,7 +586,8 @@ function applySubmit(rt: Runtime, player: PlayerRef, payload: SubmitPayload, now
       const text = String(payload.text ?? "").trim();
       if (text.length < 1 || text.length > 1000) return "Write an answer first.";
       current[player.id] = { text };
-      if (rt.format === "keywords" && everyoneSubmitted(rt)) resolveStandard(rt, now);
+      const checksItself = rt.format === "keywords" || (rt.config.acceptedAnswers ?? []).some((answer) => answer.trim());
+      if (checksItself && everyoneSubmitted(rt)) resolveStandard(rt, now);
       return null;
     }
     case "split_clue":
@@ -1019,14 +1029,14 @@ export function hostAct(
     return { ok: true, runtime: rt };
   }
   if (action.type === "mark") {
-    if (rt.format !== "host_judge") return reject(rt, "This challenge scores itself.");
+    if (rt.format !== "host_judge" || (rt.config.acceptedAnswers ?? []).some((answer) => answer.trim())) return reject(rt, "This challenge scores itself.");
     const marks = { ...((rt.extra.marks as Record<string, string>) ?? {}) };
     marks[action.userId] = action.correct ? "yes" : "no";
     rt.extra.marks = marks;
     return { ok: true, runtime: rt };
   }
   if (action.type === "resolve") {
-    if (rt.format !== "host_judge") return reject(rt, "This challenge scores itself.");
+    if (rt.format !== "host_judge" || (rt.config.acceptedAnswers ?? []).some((answer) => answer.trim())) return reject(rt, "This challenge scores itself.");
     const marks = (rt.extra.marks as Record<string, string>) ?? {};
     const win = points(rt.config, "successPoints", 5);
     const lose = points(rt.config, "failPoints", 0);
@@ -1082,7 +1092,7 @@ export function view(runtime: Runtime, userId: string | null, isHost: boolean, n
     revealed: rt.hintLevel >= 2 ? rt.config.answerReveal ?? null : null,
     board: null,
     yourScore: userId ? rt.scores[userId] ?? 0 : 0,
-    hostPanel: isHost && rt.format === "host_judge" ? judgeEntries(rt) : null,
+    hostPanel: isHost && rt.format === "host_judge" && !(rt.config.acceptedAnswers ?? []).some((answer) => answer.trim()) ? judgeEntries(rt) : null,
   };
   if (rt.phase === "complete") {
     base.input = { kind: "wait", message: rt.summary || "The challenge is over." };

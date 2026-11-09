@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { Nav } from "@/components/ui";
 import { LibraryEditor } from "@/components/library-editor";
 import { COOKIE, accountFromToken } from "@/lib/auth";
+import { answerField, isQuestionFormat } from "@/lib/answers";
 import { queenSettings } from "@/lib/queen";
 import { library } from "@/lib/room";
 import type { GameDefinition } from "@/lib/types";
@@ -11,11 +12,11 @@ export const dynamic = "force-dynamic";
 
 export default async function GamePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const game = (await library(id)) as Record<string, unknown> | null;
-  if (!game) notFound();
   const token = (await cookies()).get(COOKIE)?.value;
   const account = await accountFromToken(token);
   const owner = account?.role === "owner";
+  const game = (await library(id, { secrets: owner })) as Record<string, unknown> | null;
+  if (!game) notFound();
   const definition = (game.definition ?? {}) as GameDefinition;
   const queen = String(game.format) === "queens_touch" ? queenSettings(definition) : null;
   return (
@@ -45,6 +46,8 @@ export default async function GamePage({ params }: { params: Promise<{ id: strin
             rounds: Number(game.rounds ?? 1),
             successPoints: Number(definition.successPoints ?? 5),
             failPoints: Number(definition.failPoints ?? 0),
+            question: isQuestionFormat(String(game.format ?? "")),
+            answers: answerField(definition),
           }} />
         ) : (
           <article className="panel stack">

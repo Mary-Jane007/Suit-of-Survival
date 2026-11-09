@@ -335,6 +335,9 @@ export async function readRoom(q: Sql, code: string, account: Account | null, su
           objective: game.objective,
           materials: game.materials,
           safety: game.safety_note,
+          minPlayers: Number(game.min_players ?? 1),
+          maxPlayers: Number(game.max_players ?? 1),
+          timerSeconds: Number(game.timer_seconds ?? 60),
         }
       : null,
     representative: game
@@ -916,7 +919,7 @@ async function reveal(q: Sql, session: SessionRow, gameId: string, method: strin
   await logLine(q, String(session.id), `${game.name} was drawn.`);
 }
 
-export async function library(detailId?: string) {
+export async function library(detailId?: string, options?: { secrets?: boolean }) {
   await ready();
   if (!detailId) {
     const rows = await (await import("./db")).sql(
@@ -934,7 +937,8 @@ export async function library(detailId?: string) {
   );
   const row = rows[0];
   if (!row) return null;
-  return { ...row, definition: publicDefinition(parseJson<GameDefinition>(row.definition, {})) };
+  const definition = parseJson<GameDefinition>(row.definition, {});
+  return { ...row, definition: options?.secrets ? definition : publicDefinition(definition) };
 }
 
 export async function profile(account: Account) {

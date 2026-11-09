@@ -11,7 +11,7 @@ type Room = {
   you: { id: string; username: string; isHost: boolean; score: number; status: string; hand: { id: string; name: string; suit: string; rank: string }[]; entered: boolean } | null;
   session: { code: string; phase: string; playStyle: string; drawMode: string; paused: boolean; deadline: number | null };
   announcement: { kicker: string; title: string; body: string; targetId?: string } | null;
-  card: { slug: string; suit: string; rank: string; name: string; title: string; difficulty: string; rules: string; objective: string; materials: string; safety: string } | null;
+  card: { slug: string; suit: string; rank: string; name: string; title: string; difficulty: string; rules: string; objective: string; materials: string; safety: string; minPlayers: number; maxPlayers: number; timerSeconds: number } | null;
   representative: { name: string; portraitKey: string; accent: string; line: string } | null;
   players: { id: string; username: string; ready: boolean; entered: boolean; score: number; status: string; isHost: boolean; connected: boolean }[];
   play: {
@@ -182,12 +182,37 @@ function Proclamation({ room, host, mode, send, error }: { room: Room; host: boo
   );
 }
 
+function playerNeed(card: { minPlayers: number; maxPlayers: number }) {
+  const min = Number(card.minPlayers);
+  const max = Number(card.maxPlayers);
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return "";
+  if (min === max) return `${min} ${min === 1 ? "player" : "players"}`;
+  return `${min}–${max} players`;
+}
+
+function timeLimit(card: { timerSeconds?: number }) {
+  const seconds = Number(card.timerSeconds);
+  if (!Number.isFinite(seconds) || seconds <= 0) return "";
+  return seconds === 1 ? "1 second" : `${seconds} seconds`;
+}
+
+function DrawnCard({ card, flipped }: { card: NonNullable<Room["card"]>; flipped: boolean }) {
+  const line = [playerNeed(card), timeLimit(card)].filter(Boolean).join(" · ");
+  return (
+    <div className="drawn-card">
+      <CardFace suit={card.suit} rank={card.rank} name={card.name} flipped={flipped} />
+      {line ? <p className="card-need">{line}</p> : null}
+    </div>
+  );
+}
+
 function Opening({ room, name }: { room: Room; name: string }) {
   return (
     <>
       <p className="jp">ようこそ</p>
       <p className="jp">プレイヤーの皆様</p>
       <p className="jp">まもなく</p>
+      {room.card ? <DrawnCard card={room.card} flipped /> : null}
       <h1>【{name}】</h1>
       <p className="jp">が開始します</p>
       {room.card ? <p className="quiet">{room.card.title} · Difficulty {room.card.difficulty}</p> : null}
@@ -205,6 +230,7 @@ function Ending({ room, cleared, name }: { room: Room; cleared: boolean; name: s
   return (
     <>
       <h1>【{name}】</h1>
+      {room.card ? <DrawnCard card={room.card} flipped /> : null}
       <p className="jp">{cleared ? "ゲームクリア" : failed ? "ゲームオーバー" : "結果"}</p>
       <p>{cleared ? "Successfully completed." : failed ? "Not completed." : "Some cleared. Some did not."}</p>
       {room.result ? (
@@ -212,7 +238,7 @@ function Ending({ room, cleared, name }: { room: Room; cleared: boolean; name: s
           {room.result.rows.map((row) => (
             <li key={row.username}>
               <span>{row.username}</span>
-              <span className={row.success ? "cleared" : "missed"}>{row.success ? "Cleared" : "Not cleared"} · {row.delta >= 0 ? "+" : ""}{row.delta}</span>
+              <span className={row.success ? "cleared" : "missed"}>{row.reason || (row.success ? "Cleared" : "Not cleared")} · {row.delta >= 0 ? "+" : ""}{row.delta}</span>
             </li>
           ))}
         </ul>
@@ -287,7 +313,7 @@ function Screen({ room, flipped, host, send }: { room: Room; flipped: boolean; h
   return (
     <>
     <section className="stage-layout">
-      <div>{room.card ? <CardFace suit={room.card.suit} rank={room.card.rank} name={room.card.name} flipped={flipped || phase !== "detected"} /> : <CardFace suit="spades" rank="?" flipped={false} />}</div>
+      <div>{room.card ? <DrawnCard card={room.card} flipped={flipped || phase !== "detected"} /> : <CardFace suit="spades" rank="?" flipped={false} />}</div>
       <div className="announce">
         <div className="kicker">{room.announcement?.kicker || "ARENA"}</div>
         <h2>{room.announcement?.title || room.card?.title || room.session.code}</h2>
@@ -360,7 +386,7 @@ function Phone(props: {
       {phase === "countdown" || phase === "registration" || phase === "playing" ? (
         <Timer deadline={room.play?.deadline || room.session.deadline} now={room.now} paused={room.session.paused || room.play?.paused} />
       ) : null}
-      {room.card ? <CardFace suit={room.card.suit} rank={room.card.rank} name={room.card.name} flipped={props.flipped || phase !== "detected"} /> : null}
+      {room.card ? <DrawnCard card={room.card} flipped={props.flipped || phase !== "detected"} /> : null}
       {(phase === "registration" || phase === "rules") && !room.you.entered ? (
         <button className="btn" onClick={() => send({ type: "enter" })}>Step in</button>
       ) : null}
@@ -426,6 +452,12 @@ function PlayForm(props: {
           ))}
           {kind === "pair" ? <p className="meta">They recommend {String(input.recommendation || "")}.</p> : null}
         </div>
+      ) : null}
+      {(play.format === "multiple_choice" || play.format === "echo_choice") && kind === "choice" ? (
+        <form className="stack" onSubmit={(event) => { event.preventDefault(); send({ type: "submit", payload: { text: props.text } }); }}>
+          <textarea value={props.text} onChange={(event) => props.setText(event.target.value)} placeholder="Or write the answer in your own words" />
+          <button className="btn" type="submit">Submit answer</button>
+        </form>
       ) : null}
       {play.format === "forehead" && kind === "choice" ? (
         <div className="grid-2">
@@ -677,7 +709,7 @@ function Results({ result }: { result: NonNullable<Room["result"]> }) {
       <p>{result.summary}</p>
       {result.rows.map((row) => (
         <div key={row.username} className="player">
-          <span>{row.username} {row.success ? "cleared" : "missed"}</span>
+          <span>{row.username} · {row.reason || (row.success ? "Cleared" : "Missed")}</span>
           <span className={row.delta >= 0 ? "score-up" : "score-down"}>{row.delta >= 0 ? "+" : ""}{row.delta} · {row.total}</span>
         </div>
       ))}

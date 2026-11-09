@@ -272,6 +272,11 @@ label.write { text-transform: none; letter-spacing: normal; color: var(--fg); fo
   color: #111;
 }
 body.proclaiming.scanlines::after { opacity: 0; }
+.drawn-card { display: grid; justify-items: center; gap: 8px; }
+.card-need { margin: 0; font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; }
+.proclamation .drawn-card { margin: 8px auto 4px; }
+.proclamation .playing-card { width: min(168px, 42vw); }
+.proclamation .card-need { color: #111; }
 .proclamation .sheet {
   width: min(720px, calc(100% - 48px));
   margin: auto;

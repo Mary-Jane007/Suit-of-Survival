@@ -44,10 +44,23 @@ test("two phones and a host clear The Box without trusting the client", async ()
     materials: detail.materials,
     safety: detail.safety_note,
   };
-  await manage(owner, "save-writing", { ...writing, rules: "A rule written in the library." });
-  const written = (await library(box.id)) as unknown as { rules: string };
+  await manage(owner, "save-writing", { ...writing, rules: "A rule written in the library.", minPlayers: 3, maxPlayers: 6, timerSeconds: 45 });
+  const written = (await library(box.id)) as unknown as { rules: string; min_players: number; max_players: number; timer_seconds: number };
   assert.equal(written.rules, "A rule written in the library.");
-  await manage(owner, "save-writing", { ...writing, rules: detail.rules });
+  assert.equal(Number(written.min_players), 3);
+  assert.equal(Number(written.max_players), 6);
+  assert.equal(Number(written.timer_seconds), 45);
+  await manage(owner, "save-writing", { ...writing, rules: detail.rules, minPlayers: Number(detail.min_players), maxPlayers: Number(detail.max_players), timerSeconds: Number(detail.timer_seconds) });
+  const restored = (await library(box.id)) as unknown as { min_players: number; max_players: number; timer_seconds: number };
+  assert.equal(Number(restored.min_players), Number(detail.min_players));
+  assert.equal(Number(restored.max_players), Number(detail.max_players));
+  assert.equal(Number(restored.timer_seconds), Number(detail.timer_seconds));
+  await manage(owner, "save-writing", { ...writing, rules: detail.rules, answers: "Box B\nthe middle box" });
+  const hidden = JSON.stringify(await library(box.id));
+  assert.equal(hidden.includes("middle box"), false);
+  const ownerCopy = (await library(box.id, { secrets: true })) as unknown as { definition: { acceptedAnswers?: string[] } };
+  assert.deepEqual(ownerCopy.definition.acceptedAnswers, ["Box B", "the middle box"]);
+  await manage(owner, "save-writing", { ...writing, rules: detail.rules, answers: "" });
   const code = await createSession(owner, { playStyle: "arena", drawMode: "manual", preventDuplicates: true });
   await joinRoom(ada, code);
   await joinRoom(bea, code);

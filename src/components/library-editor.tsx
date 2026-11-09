@@ -24,6 +24,8 @@ export type LibraryFields = {
   rounds: number;
   successPoints: number;
   failPoints: number;
+  question: boolean;
+  answers: string;
 };
 
 export function LibraryEditor({ game }: { game: LibraryFields }) {
@@ -35,6 +37,27 @@ export function LibraryEditor({ game }: { game: LibraryFields }) {
   function set(key: keyof LibraryFields, value: string) {
     setSaved(false);
     setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function setLimit(raw: string) {
+    setSaved(false);
+    const parsed = Math.round(Number(raw));
+    const next = Number.isFinite(parsed) ? Math.max(5, Math.min(3600, parsed)) : 5;
+    setForm((current) => ({ ...current, timerSeconds: next }));
+  }
+
+  function setCount(key: "minPlayers" | "maxPlayers", raw: string) {
+    setSaved(false);
+    const parsed = Math.round(Number(raw));
+    const next = Number.isFinite(parsed) ? Math.max(1, Math.min(16, parsed)) : 1;
+    setForm((current) => {
+      const draft = { ...current, [key]: next };
+      if (draft.maxPlayers < draft.minPlayers) {
+        if (key === "minPlayers") draft.maxPlayers = draft.minPlayers;
+        else draft.minPlayers = draft.maxPlayers;
+      }
+      return draft;
+    });
   }
 
   async function save(event: React.FormEvent) {
@@ -65,6 +88,18 @@ export function LibraryEditor({ game }: { game: LibraryFields }) {
       <label className="write">Scoring<input value={form.scoring} onChange={(event) => set("scoring", event.target.value)} /></label>
       <label className="write">Materials<input value={form.materials} onChange={(event) => set("materials", event.target.value)} /></label>
       <label className="write">Safety<textarea value={form.safety} onChange={(event) => set("safety", event.target.value)} /></label>
+      <div className="grid-2">
+        <label>Minimum players<input type="number" min={1} max={16} value={form.minPlayers} onChange={(event) => setCount("minPlayers", event.target.value)} /></label>
+        <label>Maximum players<input type="number" min={1} max={16} value={form.maxPlayers} onChange={(event) => setCount("maxPlayers", event.target.value)} /></label>
+        <label>Time limit, seconds<input type="number" min={5} max={3600} value={form.timerSeconds} onChange={(event) => setLimit(event.target.value)} /></label>
+      </div>
+      <p className="meta">Shown under the card when it is drawn. Use the same player number twice when the card needs an exact count.{form.queen ? " On the Queen of Spades, the time limit is for each question." : ""}</p>
+      {form.question ? (
+        <>
+          <label className="write">Right answer<textarea className="writing" value={form.answers} onChange={(event) => set("answers", event.target.value)} /></label>
+          <p className="meta">One way to say it per line. Players can write the answer in their own words. Close wording still counts when it is the same answer.</p>
+        </>
+      ) : null}
       {form.queen ? <QueenFields form={form} setForm={setForm} /> : null}
       <div className="dock">
         <button className="btn" type="submit">Save</button>
@@ -86,10 +121,7 @@ function QueenFields({ form, setForm }: { form: LibraryFields; setForm: (value: 
     <div className="stack">
       <p>Queen of Spades. These settings stay with the card.</p>
       <div className="grid-2">
-        <label>Minimum players<input type="number" value={form.minPlayers} onChange={(event) => setForm({ ...form, minPlayers: Number(event.target.value) })} /></label>
-        <label>Maximum players<input type="number" value={form.maxPlayers} onChange={(event) => setForm({ ...form, maxPlayers: Number(event.target.value) })} /></label>
         <label>Rounds<input type="number" value={form.rounds} onChange={(event) => setForm({ ...form, rounds: Number(event.target.value) })} /></label>
-        <label>Seconds per question<input type="number" value={form.timerSeconds} onChange={(event) => setForm({ ...form, timerSeconds: Number(event.target.value) })} /></label>
         <label>Points for a correct answer<input type="number" value={form.successPoints} onChange={(event) => setForm({ ...form, successPoints: Number(event.target.value) })} /></label>
         <label>Points for a miss<input type="number" value={form.failPoints} onChange={(event) => setForm({ ...form, failPoints: Number(event.target.value) })} /></label>
         <label>Allowed mistakes<input type="number" value={queen.allowedMistakes} onChange={(event) => patch({ ...queen, allowedMistakes: Number(event.target.value) })} /></label>

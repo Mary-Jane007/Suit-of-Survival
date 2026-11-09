@@ -111,6 +111,41 @@ test("the box and the light-switch choices score on the server", () => {
   assert.equal(leaked.includes("correctOptionId"), false);
 });
 
+test("a written answer is scored from the library and stays off the phone", () => {
+  let rt = createRuntime(
+    {
+      format: "multiple_choice",
+      correctOptionId: "b",
+      acceptedAnswers: ["Box B", "the middle box"],
+      successPoints: 10,
+      failPoints: 0,
+      options: [
+        { id: "a", label: "Box A" },
+        { id: "b", label: "Box B" },
+        { id: "c", label: "Box C" },
+      ],
+      timerSeconds: 30,
+    },
+    players(["ada", "bea"]),
+    1,
+    "written-box",
+    cards,
+  );
+  const leaked = JSON.stringify(view(rt, "ada", false, 1));
+  assert.equal(leaked.includes("middle box"), false);
+  assert.equal(leaked.includes("acceptedAnswers"), false);
+  rt = submit(rt, "ada", { text: "it is the middle box" }, 1).runtime;
+  rt = submit(rt, "bea", { text: "box a" }, 1).runtime;
+  assert.equal(rt.phase, "complete");
+  const ada = outcomes(rt).find((row) => row.userId === "ada");
+  const bea = outcomes(rt).find((row) => row.userId === "bea");
+  assert.equal(ada?.delta, 10);
+  assert.equal(ada?.success, true);
+  assert.equal(ada?.reason, "Correct.");
+  assert.equal(bea?.success, false);
+  assert.equal(bea?.reason, "Not this time.");
+});
+
 test("wolf mark is digital and protection only counts from someone else", () => {
   const rt0 = createRuntime(
     {
