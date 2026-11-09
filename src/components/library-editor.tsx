@@ -37,6 +37,20 @@ export function LibraryEditor({ game }: { game: LibraryFields }) {
     setForm((current) => ({ ...current, [key]: value }));
   }
 
+  function setCount(key: "minPlayers" | "maxPlayers", raw: string) {
+    setSaved(false);
+    const parsed = Math.round(Number(raw));
+    const next = Number.isFinite(parsed) ? Math.max(1, Math.min(16, parsed)) : 1;
+    setForm((current) => {
+      const draft = { ...current, [key]: next };
+      if (draft.maxPlayers < draft.minPlayers) {
+        if (key === "minPlayers") draft.maxPlayers = draft.minPlayers;
+        else draft.minPlayers = draft.maxPlayers;
+      }
+      return draft;
+    });
+  }
+
   async function save(event: React.FormEvent) {
     event.preventDefault();
     setError("");
@@ -65,6 +79,11 @@ export function LibraryEditor({ game }: { game: LibraryFields }) {
       <label className="write">Scoring<input value={form.scoring} onChange={(event) => set("scoring", event.target.value)} /></label>
       <label className="write">Materials<input value={form.materials} onChange={(event) => set("materials", event.target.value)} /></label>
       <label className="write">Safety<textarea value={form.safety} onChange={(event) => set("safety", event.target.value)} /></label>
+      <div className="grid-2">
+        <label>Minimum players<input type="number" min={1} max={16} value={form.minPlayers} onChange={(event) => setCount("minPlayers", event.target.value)} /></label>
+        <label>Maximum players<input type="number" min={1} max={16} value={form.maxPlayers} onChange={(event) => setCount("maxPlayers", event.target.value)} /></label>
+      </div>
+      <p className="meta">Shown under the card when it is drawn. Use the same number twice when the card needs an exact count.</p>
       {form.queen ? <QueenFields form={form} setForm={setForm} /> : null}
       <div className="dock">
         <button className="btn" type="submit">Save</button>
@@ -86,8 +105,6 @@ function QueenFields({ form, setForm }: { form: LibraryFields; setForm: (value: 
     <div className="stack">
       <p>Queen of Spades. These settings stay with the card.</p>
       <div className="grid-2">
-        <label>Minimum players<input type="number" value={form.minPlayers} onChange={(event) => setForm({ ...form, minPlayers: Number(event.target.value) })} /></label>
-        <label>Maximum players<input type="number" value={form.maxPlayers} onChange={(event) => setForm({ ...form, maxPlayers: Number(event.target.value) })} /></label>
         <label>Rounds<input type="number" value={form.rounds} onChange={(event) => setForm({ ...form, rounds: Number(event.target.value) })} /></label>
         <label>Seconds per question<input type="number" value={form.timerSeconds} onChange={(event) => setForm({ ...form, timerSeconds: Number(event.target.value) })} /></label>
         <label>Points for a correct answer<input type="number" value={form.successPoints} onChange={(event) => setForm({ ...form, successPoints: Number(event.target.value) })} /></label>

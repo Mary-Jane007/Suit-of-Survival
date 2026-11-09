@@ -15,6 +15,12 @@ function text(value: unknown, max: number, fallback = "") {
   return raw;
 }
 
+function bounded(value: unknown, fallback: number, low: number, high: number) {
+  const parsed = Number(value ?? fallback);
+  const count = Number.isFinite(parsed) ? Math.round(parsed) : fallback;
+  return Math.max(low, Math.min(high, count));
+}
+
 export async function overview(account: Account | null) {
   owner(account);
   await ready();
@@ -93,7 +99,10 @@ export async function manage(account: Account | null, action: string, body: Reco
 async function saveWriting(body: Record<string, unknown>) {
   const id = text(body.id, 80);
   if (!id) throw new Error("Choose a card.");
-  const existing = await sql<{ definition: unknown; format: string }>("select definition, format from games where id = $1 and status = 'published'", [id]);
+  const existing = await sql<{ definition: unknown; format: string; min_players: number; max_players: number }>(
+    "select definition, format, min_players, max_players from games where id = $1 and status = 'published'",
+    [id],
+  );
   if (!existing[0]) throw new Error("That card is not in the library.");
   const definition = parseJson<Record<string, unknown>>(existing[0].definition, {});
   const queenCard = existing[0].format === "queens_touch" && body.queen && typeof body.queen === "object";
@@ -104,8 +113,8 @@ async function saveWriting(body: Record<string, unknown>) {
     definition.rounds = Math.max(1, Math.min(5, Number(body.rounds ?? definition.rounds ?? 5)));
     definition.timerSeconds = Math.max(5, Math.min(180, Number(body.timerSeconds ?? definition.timerSeconds ?? 30)));
   }
-  const minPlayers = Math.max(2, Math.min(15, Number(body.minPlayers ?? 7)));
-  const maxPlayers = Math.max(minPlayers, Math.min(16, Number(body.maxPlayers ?? 15)));
+  const minPlayers = bounded(body.minPlayers, Number(existing[0].min_players ?? 1), 1, 16);
+  const maxPlayers = bounded(body.maxPlayers, Number(existing[0].max_players ?? minPlayers), minPlayers, 16);
   const timerSeconds = Math.max(5, Math.min(180, Number(body.timerSeconds ?? 30)));
   const rounds = Math.max(1, Math.min(5, Number(body.rounds ?? 5)));
   const fields = [
@@ -134,9 +143,9 @@ async function saveWriting(body: Record<string, unknown>) {
     : await sql(
         `update games set name=$2, description=$3, rules=$4, rules_original=$5, instructions=$6, objective=$7,
           win_condition=$8, fail_condition=$9, scoring_summary=$10, materials=$11, safety_note=$12,
-          definition=$13::jsonb, updated_at=now()
+          definition=$13::jsonb, min_players=$14, max_players=$15, updated_at=now()
          where id=$1 and status='published' returning id`,
-        fields,
+        [...fields, minPlayers, maxPlayers],
       );
   if (!updated[0]) throw new Error("That card is not in the library.");
   return { id };
