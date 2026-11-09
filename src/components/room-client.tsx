@@ -11,7 +11,7 @@ type Room = {
   you: { id: string; username: string; isHost: boolean; score: number; status: string; hand: { id: string; name: string; suit: string; rank: string }[]; entered: boolean } | null;
   session: { code: string; phase: string; playStyle: string; drawMode: string; paused: boolean; deadline: number | null };
   announcement: { kicker: string; title: string; body: string; targetId?: string } | null;
-  card: { slug: string; suit: string; rank: string; name: string; title: string; difficulty: string; rules: string; objective: string; materials: string; safety: string } | null;
+  card: { slug: string; suit: string; rank: string; name: string; title: string; difficulty: string; rules: string; objective: string; materials: string; safety: string; minPlayers: number; maxPlayers: number } | null;
   representative: { name: string; portraitKey: string; accent: string; line: string } | null;
   players: { id: string; username: string; ready: boolean; entered: boolean; score: number; status: string; isHost: boolean; connected: boolean }[];
   play: {
@@ -182,13 +182,31 @@ function Proclamation({ room, host, mode, send, error }: { room: Room; host: boo
   );
 }
 
+function playerNeed(card: { minPlayers: number; maxPlayers: number }) {
+  const min = Number(card.minPlayers);
+  const max = Number(card.maxPlayers);
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return "";
+  if (min === max) return `${min} ${min === 1 ? "player" : "players"}`;
+  return `${min}–${max} players`;
+}
+
+function DrawnCard({ card, flipped }: { card: NonNullable<Room["card"]>; flipped: boolean }) {
+  const need = playerNeed(card);
+  return (
+    <div className="drawn-card">
+      <CardFace suit={card.suit} rank={card.rank} name={card.name} flipped={flipped} />
+      {need ? <p className="card-need">{need}</p> : null}
+    </div>
+  );
+}
+
 function Opening({ room, name }: { room: Room; name: string }) {
   return (
     <>
       <p className="jp">ようこそ</p>
       <p className="jp">プレイヤーの皆様</p>
       <p className="jp">まもなく</p>
-      {room.card ? <CardFace suit={room.card.suit} rank={room.card.rank} name={room.card.name} flipped /> : null}
+      {room.card ? <DrawnCard card={room.card} flipped /> : null}
       <h1>【{name}】</h1>
       <p className="jp">が開始します</p>
       {room.card ? <p className="quiet">{room.card.title} · Difficulty {room.card.difficulty}</p> : null}
@@ -206,7 +224,7 @@ function Ending({ room, cleared, name }: { room: Room; cleared: boolean; name: s
   return (
     <>
       <h1>【{name}】</h1>
-      {room.card ? <CardFace suit={room.card.suit} rank={room.card.rank} name={room.card.name} flipped /> : null}
+      {room.card ? <DrawnCard card={room.card} flipped /> : null}
       <p className="jp">{cleared ? "ゲームクリア" : failed ? "ゲームオーバー" : "結果"}</p>
       <p>{cleared ? "Successfully completed." : failed ? "Not completed." : "Some cleared. Some did not."}</p>
       {room.result ? (
@@ -289,7 +307,7 @@ function Screen({ room, flipped, host, send }: { room: Room; flipped: boolean; h
   return (
     <>
     <section className="stage-layout">
-      <div>{room.card ? <CardFace suit={room.card.suit} rank={room.card.rank} name={room.card.name} flipped={flipped || phase !== "detected"} /> : <CardFace suit="spades" rank="?" flipped={false} />}</div>
+      <div>{room.card ? <DrawnCard card={room.card} flipped={flipped || phase !== "detected"} /> : <CardFace suit="spades" rank="?" flipped={false} />}</div>
       <div className="announce">
         <div className="kicker">{room.announcement?.kicker || "ARENA"}</div>
         <h2>{room.announcement?.title || room.card?.title || room.session.code}</h2>
@@ -362,7 +380,7 @@ function Phone(props: {
       {phase === "countdown" || phase === "registration" || phase === "playing" ? (
         <Timer deadline={room.play?.deadline || room.session.deadline} now={room.now} paused={room.session.paused || room.play?.paused} />
       ) : null}
-      {room.card ? <CardFace suit={room.card.suit} rank={room.card.rank} name={room.card.name} flipped={props.flipped || phase !== "detected"} /> : null}
+      {room.card ? <DrawnCard card={room.card} flipped={props.flipped || phase !== "detected"} /> : null}
       {(phase === "registration" || phase === "rules") && !room.you.entered ? (
         <button className="btn" onClick={() => send({ type: "enter" })}>Step in</button>
       ) : null}
