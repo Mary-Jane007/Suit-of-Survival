@@ -59,7 +59,15 @@ button { cursor: pointer; }
   letter-spacing: 0.22em;
   font-size: 12px;
 }
-.topbar a { text-decoration: none; }
+.topbar a, .topbar .text-link { text-decoration: none; }
+.topbar .text-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  font-size: inherit;
+}
 .topbar nav { display: flex; gap: 18px; }
 
 .hero {

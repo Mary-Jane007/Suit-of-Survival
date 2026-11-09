@@ -6,6 +6,7 @@ import { CardFace, Nav, Portrait, Timer } from "./ui";
 type Room = {
   now: number;
   safety: string;
+  viewer: { id: string; username: string; role: string } | null;
   you: { id: string; username: string; isHost: boolean; score: number; status: string; hand: { id: string; name: string; suit: string; rank: string }[]; entered: boolean } | null;
   session: { code: string; phase: string; playStyle: string; drawMode: string; paused: boolean; deadline: number | null };
   announcement: { kicker: string; title: string; body: string; targetId?: string } | null;
@@ -187,7 +188,7 @@ function Phone(props: {
 }) {
   const { room, send } = props;
   const phase = room.session.phase;
-  if (!room.you) return <Join code={room.session.code} />;
+  if (!room.you) return <Join code={room.session.code} viewer={room.viewer} />;
   return (
     <section className="stack">
       <div className="kicker">{room.announcement?.kicker}</div>
@@ -451,27 +452,32 @@ function HostDock({ room, send }: { room: Room; send: (body: Record<string, unkn
   );
 }
 
-function Join({ code }: { code: string }) {
-  const [username, setUsername] = useState("");
-  const [pin, setPin] = useState("");
+function Join({ code, viewer }: { code: string; viewer: Room["viewer"] }) {
   const [error, setError] = useState("");
-  async function onSubmit(event: React.FormEvent) {
-    event.preventDefault();
-    const created = await fetch("/api/auth/player", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ username, pin, avatar: "ring" }) });
-    const data = await created.json();
-    if (!created.ok) return setError(data.error || "Could not join.");
+  const next = `/account?next=${encodeURIComponent(`/room/${code}`)}`;
+  async function enter() {
+    setError("");
     const joined = await fetch("/api/sessions/join", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code }) });
     const room = await joined.json();
     if (!joined.ok) return setError(room.error || "Could not enter the room.");
     location.reload();
   }
+  if (!viewer) {
+    return (
+      <section className="panel stack">
+        <div className="kicker">Join {code}</div>
+        <p>Sign in first. The cards you clear stay on that account.</p>
+        <a className="btn" href={`${next}&mode=login`}>Log in</a>
+        <a className="ghost" href={`${next}&mode=signup`}>Sign up</a>
+      </section>
+    );
+  }
   return (
-    <form className="panel stack" onSubmit={onSubmit}>
+    <section className="panel stack">
       <div className="kicker">Join {code}</div>
-      <label>Name<input value={username} onChange={(event) => setUsername(event.target.value)} required /></label>
-      <label>4-digit pin<input value={pin} inputMode="numeric" pattern="\d{4}" onChange={(event) => setPin(event.target.value)} required /></label>
-      <button className="btn" type="submit">Enter the arena</button>
+      <p>{viewer.username}, step into this room. Your collection comes with you.</p>
+      <button className="btn" onClick={enter}>Enter the arena</button>
       <p className="error">{error}</p>
-    </form>
+    </section>
   );
 }

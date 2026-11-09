@@ -42,6 +42,17 @@ export function ThemeBoot() {
 }
 
 export function Nav() {
+  const [account, setAccount] = useState<{ username: string; role: string } | null>(null);
+  useEffect(() => {
+    fetch("/api/me")
+      .then((res) => res.json())
+      .then((data) => setAccount(data.account ?? null))
+      .catch(() => setAccount(null));
+  }, []);
+  async function logout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    location.href = "/account";
+  }
   return (
     <header className="topbar">
       <a href="/">Suit of Survival</a>
@@ -49,8 +60,9 @@ export function Nav() {
         <a href="/enter">Enter</a>
         <a href="/library">Library</a>
         <a href="/how">How to play</a>
-        <a href="/profile">Profile</a>
-        <a href="/owner">Owner</a>
+        <a href="/profile">{account ? account.username : "Profile"}</a>
+        {account?.role === "owner" ? <a href="/owner">Owner</a> : null}
+        {account ? <button className="text-link" onClick={logout}>Log out</button> : <a href="/account">Log in</a>}
       </nav>
     </header>
   );

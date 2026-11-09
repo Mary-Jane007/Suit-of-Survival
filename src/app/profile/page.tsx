@@ -8,7 +8,8 @@ export default function ProfilePage() {
   useEffect(() => {
     fetch("/api/me").then((res) => res.json()).then(setData);
   }, []);
-  const account = data?.account as { username: string } | null;
+  const account = data?.account as { username: string; role: string } | null;
+  const totals = data?.totals as { score?: string; clears?: string } | undefined;
   const collection = (data?.collection as { id: string; name: string; suit: string; rank: string }[]) ?? [];
   const history = (data?.history as { name: string; delta: number; reason: string }[]) ?? [];
   const achievements = (data?.achievements as { name: string; description: string }[]) ?? [];
@@ -18,7 +19,7 @@ export default function ProfilePage() {
       <main className="wide stack">
         <p className="kicker">Profile</p>
         <h1 style={{ fontFamily: "var(--font-display)", margin: 0 }}>{account?.username || "No one is signed in"}</h1>
-        {!account ? <a className="btn" href="/enter">Enter the game</a> : null}
+        {account ? <p className="meta">{account.role === "owner" ? "Owner" : "Player"} · {totals?.score ?? 0} points · {totals?.clears ?? 0} cards. This stays when you log in again.</p> : <a className="btn" href="/account?next=/profile">Log in</a>}
         <section>
           <h2>Collection</h2>
           <div className="lib-grid">

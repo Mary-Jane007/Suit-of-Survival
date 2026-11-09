@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { hashSecret, verifySecret, openSession, ownerGate, type Account } from "./auth";
+import { hashSecret, verifySecret, openSession, type Account } from "./auth";
 import { withTx, type Sql } from "./db";
 import {
   challengePending,
@@ -96,66 +96,63 @@ async function logLine(q: Sql, sessionId: string | null, message: string) {
   await q("insert into activity (id, session_id, message) values ($1,$2,$3)", [randomUUID(), sessionId, message.slice(0, 240)]);
 }
 
-export async function registerPlayer(input: Record<string, unknown>) {
-  await ready();
-  const username = cleanName(input.username);
-  const pin = String(input.pin ?? "");
-  if (!/^\d{4}$/.test(pin)) throw new Error("Choose a 4-digit pin.");
-  const avatar = avatarOf(input.avatar);
-  const existing = await (await import("./db")).sql<{ id: string; pin_hash: string | null }>(
-    "select id, pin_hash from users where lower(username) = lower($1)",
-    [username],
-  );
-  if (existing[0]) {
-    const ok = await verifySecret(pin, existing[0].pin_hash);
-    if (!ok) throw new Error("That name is taken. The pin did not match.");
-    await (await import("./db")).sql("update users set avatar = $2 where id = $1", [existing[0].id, avatar]);
-    return openSession(existing[0].id);
-  }
-  const id = randomUUID();
-  const pinHash = await hashSecret(pin);
-  await (await import("./db")).sql(
-    "insert into users (id, username, pin_hash, role, avatar) values ($1,$2,$3,'player',$4)",
-    [id, username, pinHash, avatar],
-  );
-  return openSession(id);
+function cleanPassword(value: unknown) {
+  const password = String(value ?? "");
+  if (password.length < 8 || password.length > 80) throw new Error("Use a password of at least 8 characters.");
+  return password;
 }
 
-export async function claimOwner(input: Record<string, unknown>) {
+function dbErrorText(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+export async function signUp(input: Record<string, unknown>) {
   await ready();
-  if (!ownerGate(typeof input.accessCode === "string" ? input.accessCode : undefined)) {
-    throw new Error("The owner key was refused. Set OWNER_ACCESS_CODE, or use the local dev server.");
+  const username = cleanName(input.username);
+  const password = cleanPassword(input.password);
+  const avatar = avatarOf(input.avatar);
+  const passwordHash = await hashSecret(password);
+  const id = randomUUID();
+  try {
+    const role = await insertAccount(id, username, passwordHash, avatar, false);
+    return { token: await openSession(id), role };
+  } catch (error) {
+    if (dbErrorText(error).includes("users_single_owner")) {
+      const role = await insertAccount(id, username, passwordHash, avatar, true);
+      return { token: await openSession(id), role };
+    }
+    if (/duplicate key|unique constraint/i.test(dbErrorText(error))) throw new Error("That name is taken. Log in instead.");
+    throw error;
   }
+}
+
+async function insertAccount(id: string, username: string, passwordHash: string, avatar: string, forcePlayer: boolean) {
+  return withTx(async (q) => {
+    const taken = await q("select id from users where lower(username) = lower($1)", [username]);
+    if (taken[0]) throw new Error("That name is taken. Log in instead.");
+    const owners = await q("select id from users where role = 'owner' limit 1");
+    const role = forcePlayer || owners[0] ? "player" : "owner";
+    await q(
+      "insert into users (id, username, password_hash, role, avatar) values ($1,$2,$3,$4,$5)",
+      [id, username, passwordHash, role, avatar],
+    );
+    await logLine(q, null, role === "owner" ? `${username} opened the table.` : `${username} signed up.`);
+    return role as "owner" | "player";
+  });
+}
+
+export async function login(input: Record<string, unknown>) {
+  await ready();
   const username = cleanName(input.username);
   const password = String(input.password ?? "");
-  if (password.length < 8 || password.length > 80) throw new Error("Use a password of at least 8 characters.");
-  const owners = await (await import("./db")).sql<{ id: string }>("select id from users where role = 'owner'");
-  if (owners[0]) throw new Error("An owner already holds this table.");
-  const id = randomUUID();
-  const passwordHash = await hashSecret(password);
-  await (await import("./db")).sql(
-    "insert into users (id, username, password_hash, role, avatar) values ($1,$2,$3,'owner','crest')",
-    [id, username, passwordHash],
-  );
-  await logLine(await import("./db").then((m) => m.sql), null, `${username} claimed the table.`);
-  return openSession(id);
-}
-
-export async function loginOwner(input: Record<string, unknown>) {
-  await ready();
-  if (!ownerGate(typeof input.accessCode === "string" ? input.accessCode : undefined)) {
-    throw new Error("The owner key was refused.");
-  }
-  const username = cleanName(input.username);
-  const rows = await (await import("./db")).sql<{ id: string; password_hash: string | null; role: string }>(
-    "select id, password_hash, role from users where lower(username) = lower($1)",
+  const rows = await (await import("./db")).sql<{ id: string; password_hash: string | null; pin_hash: string | null; role: "owner" | "player" }>(
+    "select id, password_hash, pin_hash, role from users where lower(username) = lower($1)",
     [username],
   );
   const row = rows[0];
-  if (!row || row.role !== "owner") throw new Error("Owner sign-in failed.");
-  const ok = await verifySecret(String(input.password ?? ""), row.password_hash);
-  if (!ok) throw new Error("Owner sign-in failed.");
-  return openSession(row.id);
+  const ok = row ? (await verifySecret(password, row.password_hash)) || (await verifySecret(password, row.pin_hash)) : false;
+  if (!row || !ok) throw new Error("That name or password is wrong.");
+  return { token: await openSession(row.id), role: row.role };
 }
 
 export async function createSession(account: Account, input: { playStyle?: string; drawMode?: string; suits?: string[]; preventDuplicates?: boolean }) {
@@ -297,6 +294,7 @@ export async function readRoom(q: Sql, code: string, account: Account | null) {
   return {
     now,
     safety: SAFETY_BANNER,
+    viewer: account ? { id: account.id, username: account.username, role: account.role } : null,
     you: me
       ? {
           id: account?.id,

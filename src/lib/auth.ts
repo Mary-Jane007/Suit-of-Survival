@@ -32,15 +32,14 @@ export function newToken() {
   return randomBytes(32).toString("hex");
 }
 
-export function ownerGate(accessCode: string | undefined) {
-  const expected = process.env.OWNER_ACCESS_CODE?.trim() ?? "";
-  if (expected.length >= 6) {
-    const given = Buffer.from(accessCode ?? "");
-    const wanted = Buffer.from(expected);
-    if (given.length !== wanted.length) return false;
-    return timingSafeEqual(given, wanted);
-  }
-  return process.env.ALLOW_LOCAL_OWNER === "1";
+export async function revokeToken(token: string | null | undefined) {
+  if (!token) return;
+  await sql("delete from auth_sessions where token = $1", [token]);
+}
+
+export function tokenFromCookie(cookie: string) {
+  const match = cookie.match(new RegExp(`(?:^|; )${COOKIE}=([^;]+)`));
+  return match ? decodeURIComponent(match[1]) : "";
 }
 
 export async function openSession(userId: string) {

@@ -11,10 +11,6 @@ npm install
 npm run dev
 ```
 
-Open the owner panel, claim the table, and put that browser on the television. Everyone else joins the room code from a phone.
+Sign up at `/account`. The first account is the owner. Later accounts are players. Log in with the same name and password to return to the same cards and scores. The owner opens an arena and puts that browser on the television. Everyone else joins the room code from a phone.
 
 `npm test` checks the scoring engine and a two-player room. `npm run build` compiles the app and applies database migrations when `DATABASE_URL` is set. Without it, the app uses a local Postgres-compatible database in `.data/`.
-
-## Owner key
-
-Set `OWNER_ACCESS_CODE` before exposing the site. The local dev script allows the first claim without that key. Do not rely on that outside this machine.

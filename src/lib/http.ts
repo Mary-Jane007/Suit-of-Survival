@@ -1,4 +1,4 @@
-import { accountFromToken, COOKIE } from "./auth";
+import { accountFromToken, tokenFromCookie } from "./auth";
 
 export function json(data: unknown, init?: { status?: number; headers?: Headers }) {
   const headers = init?.headers ?? new Headers();
@@ -26,10 +26,7 @@ export function assertOrigin(req: Request) {
 }
 
 export async function caller(req: Request) {
-  const cookie = req.headers.get("cookie") ?? "";
-  const match = cookie.match(new RegExp(`(?:^|; )${COOKIE}=([^;]+)`));
-  const token = match ? decodeURIComponent(match[1]) : "";
-  return accountFromToken(token);
+  return accountFromToken(tokenFromCookie(req.headers.get("cookie") ?? ""));
 }
 
 export async function readBody(req: Request) {

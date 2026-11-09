@@ -16,7 +16,8 @@ export default function HomePage() {
             <span>♣</span>
           </div>
           <div className="row">
-            <a className="btn" href="/enter">Enter the game</a>
+            <a className="btn" href="/account">Sign up or log in</a>
+            <a className="ghost" href="/enter">Enter the game</a>
             <a className="ghost" href="/library">Game library</a>
             <a className="ghost" href="/how">How to play</a>
           </div>
