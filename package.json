@@ -6,7 +6,7 @@
     "dev": "ALLOW_LOCAL_OWNER=1 next dev",
     "build": "next build && node scripts/migrate.mjs",
     "start": "next start",
-    "test": "tsx --test src/lib/answers.test.ts src/lib/engine.test.ts src/lib/room.test.ts src/lib/cues.test.ts",
+    "test": "tsx --test src/lib/answers.test.ts src/lib/engine.test.ts src/lib/room.test.ts src/lib/cues.test.ts src/lib/equation.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

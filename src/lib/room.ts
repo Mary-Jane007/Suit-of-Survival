@@ -12,6 +12,7 @@ import {
   view,
   type SubmitPayload,
 } from "./engine";
+import { equationCommand, equationSettings } from "./equation";
 import { queenCommand, queenSettings } from "./queen";
 import { cardTitle, fill, parseJson, publicDefinition } from "./present";
 import { ready, rankWeight } from "./seed";
@@ -375,12 +376,19 @@ export async function readRoom(q: Sql, code: string, account: Account | null, su
 }
 
 function lineFor(phase: string, game: Record<string, unknown>, announcement: Announcement | null) {
-  if (phase === "intro") return String(game.intro ?? "");
-  if (phase === "rules" || phase === "registration") return String(game.rules_line ?? "");
-  if (phase === "playing" && String(game.format) === "queens_touch" && announcement?.body) return announcement.body;
-  if (phase === "playing" || phase === "countdown") return String(game.start_line ?? "");
-  if (phase === "results") return announcement?.body || String(game.success_line ?? "");
-  return String(game.intro ?? "");
+  const spoken = equationSpeech(game);
+  if (phase === "intro") return spoken.intro || String(game.intro ?? "");
+  if (phase === "rules" || phase === "registration") return spoken.registration || String(game.rules_line ?? "");
+  if (phase === "playing" && (String(game.format) === "queens_touch" || String(game.format) === "perfect_equation") && announcement?.body) return announcement.body;
+  if (phase === "playing" || phase === "countdown") return spoken.intro || String(game.start_line ?? "");
+  if (phase === "results") return announcement?.body || spoken.success || String(game.success_line ?? "");
+  return spoken.intro || String(game.intro ?? "");
+}
+
+function equationSpeech(game: Record<string, unknown>) {
+  if (String(game.format) !== "perfect_equation") return { intro: "", registration: "", success: "" };
+  const dialogue = equationSettings(parseJson(game.definition, {})).dialogue;
+  return { intro: dialogue.intro, registration: dialogue.registration, success: dialogue.success };
 }
 
 export async function viewRoom(account: Account | null, code: string, surface: "phone" | "screen" = "phone") {
@@ -423,7 +431,7 @@ async function advanceClock(q: Sql, session: SessionRow) {
     if (!runtime) return;
     const next = tick(runtime, now);
     if (JSON.stringify(next) !== JSON.stringify(runtime)) {
-      if (next.format === "queens_touch") await storeRuntime(q, session, next);
+      if (next.format === "queens_touch" || next.format === "perfect_equation") await storeRuntime(q, session, next);
       else {
         await q("update game_sessions set runtime = $2::jsonb, paused = $3, updated_at = now() where id = $1", [
           session.id,
@@ -484,7 +492,11 @@ async function beginPlay(q: Sql, session: SessionRow) {
     actor,
   );
   const map = await templates(q);
-  const started = String(game.format) === "queens_touch" ? queenSettings(definition).dialogue.start : String(game.start_line ?? "");
+  const started = String(game.format) === "queens_touch"
+    ? queenSettings(definition).dialogue.start
+    : String(game.format) === "perfect_equation"
+      ? equationSettings(definition).dialogue.intro
+      : String(game.start_line ?? "");
   const banner = announce(map, "game_started", { ...varsOf(game, session, 0), line: started }, actor ?? undefined);
   await q(
     "update game_sessions set phase = 'playing', runtime = $2::jsonb, deadline_ms = $3, announcement = $4::jsonb, paused = false, updated_at = now() where id = $1",
@@ -730,7 +742,7 @@ async function playerAct(q: Sql, session: SessionRow, account: Account, action: 
       "insert into answers (id, session_id, game_id, user_id, round_index, payload) values ($1,$2,$3,$4,$5,$6::jsonb)",
       [randomUUID(), session.id, session.current_game_id, account.id, result.runtime.round, JSON.stringify(payload)],
     );
-    if (result.runtime.format === "queens_touch") {
+    if (result.runtime.format === "queens_touch" || result.runtime.format === "perfect_equation") {
       await storeRuntime(q, session, result.runtime);
       if (isComplete(result.runtime)) await settle(q, session, result.runtime);
       return;
@@ -806,14 +818,27 @@ async function hostAction(q: Sql, session: SessionRow, account: Account, action:
     );
     return;
   }
-  if (!["hint", "reveal", "pause", "resume", "extend", "shorten", "skip", "end", "mark", "resolve"].includes(type)) {
+  if (!["hint", "reveal", "pause", "resume", "extend", "shorten", "skip", "end", "mark", "resolve", "equation"].includes(type)) {
     throw new Error("Unknown control.");
   }
   if (session.phase !== "playing") throw new Error("That control is for a live challenge.");
   const runtime = parseJson<Runtime | null>(session.runtime, null);
   if (!runtime) throw new Error("That control is for a live challenge.");
+  if (type === "equation") {
+    if (session.phase !== "playing") throw new Error("The challenge is not open.");
+    const equationRuntime = parseJson<Runtime | null>(session.runtime, null);
+    if (!equationRuntime) throw new Error("The challenge is not open.");
+    const equationResult = equationCommand(equationRuntime, account.role === "owner", action, Date.now());
+    if (!equationResult.ok) throw new Error(equationResult.error);
+    await storeRuntime(q, session, equationResult.runtime);
+    if (isComplete(equationResult.runtime)) await settle(q, session, equationResult.runtime);
+    return;
+  }
   if (runtime.format === "queens_touch") {
     if (!["pause", "resume", "skip", "end"].includes(type)) throw new Error("The Queen runs this challenge.");
+  }
+  if (runtime.format === "perfect_equation") {
+    if (!["pause", "resume", "skip", "end", "extend", "shorten"].includes(type)) throw new Error("The equations run on their own clock.");
   }
   const seconds = Math.max(1, Math.min(600, Number(action.seconds ?? 15)));
   const result =
@@ -831,7 +856,7 @@ async function hostAction(q: Sql, session: SessionRow, account: Account, action:
     const game = await gameRow(q, String(session.current_game_id));
     announcement = announce(map, key, varsOf(game, session, seconds));
   }
-  if (result.runtime.format === "queens_touch") {
+  if (result.runtime.format === "queens_touch" || result.runtime.format === "perfect_equation") {
     if (!result.runtime.extra.banner) result.runtime.extra.banner = announcement;
     await storeRuntime(q, session, result.runtime);
   } else {
@@ -856,6 +881,7 @@ async function storeRuntime(q: Sql, session: SessionRow, runtime: Runtime) {
 }
 
 function queenDifficulty(game: Record<string, unknown>) {
+  if (String(game.format) === "perfect_equation") return "High / Extreme";
   if (String(game.format) !== "queens_touch") return "";
   return queenSettings(parseJson(game.definition, {})).difficultyLabel;
 }

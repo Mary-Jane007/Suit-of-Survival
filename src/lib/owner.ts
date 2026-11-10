@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { Account } from "./auth";
 import { sql } from "./db";
 import { cleanAcceptedAnswers, isQuestionFormat } from "./answers";
+import { cleanEquationSettings, previewEquation } from "./equation";
 import { cleanQueenSettings } from "./queen";
 import { cleanImage, parseJson, safeColor, DEFAULT_THEME } from "./present";
 import { ready, rankWeight } from "./seed";
@@ -61,6 +62,10 @@ export async function manage(account: Account | null, action: string, body: Reco
   if (action === "delete-game") return deleteGame(String(body.id ?? ""));
   if (action === "cards") return sql("select * from cards order by suit, difficulty");
   if (action === "save-writing") return saveWriting(body);
+  if (action === "preview-equation") {
+    const sample = body.sample && typeof body.sample === "object" ? body.sample as { text?: string; parts?: string[]; code?: string; explanation?: string } : {};
+    return previewEquation(cleanEquationSettings(body.equation), Number(body.roundIndex ?? 0), sample, body.shifted === true);
+  }
   if (action === "save-card") return saveCard(body);
   if (action === "representatives") return sql("select * from representatives order by name");
   if (action === "save-representative") return saveRep(body);
@@ -107,11 +112,22 @@ async function saveWriting(body: Record<string, unknown>) {
   if (!existing[0]) throw new Error("That card is not in the library.");
   const definition = parseJson<Record<string, unknown>>(existing[0].definition, {});
   const queenCard = existing[0].format === "queens_touch" && body.queen && typeof body.queen === "object";
+  const equationCard = existing[0].format === "perfect_equation" && body.equation && typeof body.equation === "object";
+  let equationRounds = 6;
+  let equationTimer = Number(existing[0].timer_seconds ?? 1080);
   if (queenCard) {
     definition.queen = cleanQueenSettings(body.queen);
     definition.successPoints = Math.max(-20, Math.min(50, Number(body.successPoints ?? definition.successPoints ?? 5)));
     definition.failPoints = Math.max(-20, Math.min(50, Number(body.failPoints ?? definition.failPoints ?? -2)));
     definition.rounds = Math.max(1, Math.min(5, Number(body.rounds ?? definition.rounds ?? 5)));
+  }
+  if (equationCard) {
+    const equation = cleanEquationSettings(body.equation);
+    definition.equation = equation;
+    equationRounds = Math.max(1, Math.min(12, equation.rounds.length));
+    equationTimer = Math.max(5, Math.min(3600, equation.rounds.reduce((total, round) => total + round.seconds, 0)));
+    definition.rounds = equationRounds;
+    definition.timerSeconds = equationTimer;
   }
   if (isQuestionFormat(existing[0].format) && typeof body.answers === "string") {
     const answers = cleanAcceptedAnswers(body.answers);
@@ -120,9 +136,9 @@ async function saveWriting(body: Record<string, unknown>) {
   }
   const minPlayers = bounded(body.minPlayers, Number(existing[0].min_players ?? 1), 1, 16);
   const maxPlayers = bounded(body.maxPlayers, Number(existing[0].max_players ?? minPlayers), minPlayers, 16);
-  const timerSeconds = bounded(body.timerSeconds, Number(existing[0].timer_seconds ?? 60), 5, 3600);
+  const timerSeconds = equationCard ? equationTimer : bounded(body.timerSeconds, Number(existing[0].timer_seconds ?? 60), 5, 3600);
   definition.timerSeconds = timerSeconds;
-  const rounds = Math.max(1, Math.min(5, Number(body.rounds ?? 5)));
+  const rounds = equationCard ? equationRounds : Math.max(1, Math.min(5, Number(body.rounds ?? 5)));
   const fields = [
     id,
     text(body.name, 80) || "Untitled challenge",
@@ -138,7 +154,7 @@ async function saveWriting(body: Record<string, unknown>) {
     text(body.safety, 400),
     JSON.stringify(definition),
   ];
-  const updated = queenCard
+  const updated = queenCard || equationCard
     ? await sql(
         `update games set name=$2, description=$3, rules=$4, rules_original=$5, instructions=$6, objective=$7,
           win_condition=$8, fail_condition=$9, scoring_summary=$10, materials=$11, safety_note=$12,

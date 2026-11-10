@@ -254,6 +254,7 @@ async function seed() {
     );
   }
   await installQueenCard();
+  await installEquationCard();
   const settingsRows = await sql<{ value: unknown }>("select value from app_settings where key = 'game'");
   const stored = settingsRows[0]?.value;
   const settings = typeof stored === "string" ? JSON.parse(stored) as { maxPlayers?: number } : (stored as { maxPlayers?: number } | undefined);
@@ -296,6 +297,42 @@ async function installQueenCard() {
   await sql(
     `update cards set description=$2, difficulty_label=$3 where id='spades-Q' and description=$1`,
     [RANK_BLURB.Q, "The Queen's Touch. One player is chosen as the Queen. Memory is the challenge.", "Queen — extreme"],
+  );
+}
+
+async function installEquationCard() {
+  const card = CATALOG.find((entry) => entry.slug === "diamonds-6");
+  if (!card) return;
+  const current = await sql<{ format: string }>("select format from games where slug = 'diamonds-6'");
+  if (current[0] && current[0].format !== "perfect_equation") {
+    await sql(
+      `update games set name=$1, description=$2, rules=$3, instructions=$4, objective=$5, win_condition=$6, fail_condition=$7,
+        scoring_summary=$8, materials=$9, min_players=$10, max_players=$11, timer_seconds=$12, duration_seconds=$12, rounds=$13,
+        format=$14, definition=$15::jsonb, safety_note=$16, representative_id='iris', updated_at=now()
+       where slug='diamonds-6'`,
+      [
+        card.name,
+        card.description,
+        card.rules,
+        card.instructions,
+        card.objective,
+        card.win,
+        card.fail,
+        card.scoring,
+        card.materials,
+        card.min,
+        card.max,
+        card.timer,
+        card.rounds,
+        card.definition.format,
+        JSON.stringify(card.definition),
+        card.safety,
+      ],
+    );
+  }
+  await sql(
+    `update cards set description=$2, difficulty_label=$3 where id='diamonds-6' and description=$1`,
+    [RANK_BLURB["6"], "The Perfect Equation. Six puzzles, one score, and one visible change.", "High / Extreme"],
   );
 }
 

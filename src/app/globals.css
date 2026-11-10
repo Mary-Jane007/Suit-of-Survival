@@ -327,6 +327,13 @@ body.proclaiming.scanlines::after { opacity: 0; }
 .owner-nav { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
 .owner-nav button[aria-current="true"] { border-color: var(--red); color: var(--red); }
 
+.equation-stage { background: #090907; color: #f7f4ea; border: 1px solid #3a3120; padding: 18px; }
+.equation-stage .kicker, .equation-phone .kicker { color: #e6c36a; }
+.equation-condition { border-left: 3px solid #e6c36a; margin: 8px 0; padding-left: 12px; }
+.equation-mark { color: #e6c36a; letter-spacing: 0.45em; animation: equation-drift 16s linear infinite; }
+.equation-phone { border: 1px solid #3a3120; padding: 12px; }
+@keyframes equation-drift { from { opacity: 0.45; } 50% { opacity: 1; } to { opacity: 0.45; } }
+
 @media (max-width: 860px) {
   .stage-layout { grid-template-columns: 1fr; }
   .grid-2 { grid-template-columns: 1fr; }
