@@ -3,6 +3,7 @@ import { Nav } from "@/components/ui";
 import { LibraryEditor } from "@/components/library-editor";
 import { COOKIE, accountFromToken } from "@/lib/auth";
 import { answerField, isQuestionFormat } from "@/lib/answers";
+import { equationSettings } from "@/lib/equation";
 import { queenSettings } from "@/lib/queen";
 import { library } from "@/lib/room";
 import type { GameDefinition } from "@/lib/types";
@@ -19,6 +20,7 @@ export default async function GamePage({ params }: { params: Promise<{ id: strin
   if (!game) notFound();
   const definition = (game.definition ?? {}) as GameDefinition;
   const queen = String(game.format) === "queens_touch" ? queenSettings(definition) : null;
+  const equation = String(game.format) === "perfect_equation" ? equationSettings(definition) : null;
   return (
     <>
       <Nav />
@@ -40,6 +42,7 @@ export default async function GamePage({ params }: { params: Promise<{ id: strin
             materials: String(game.materials ?? ""),
             safety: String(game.safety_note ?? ""),
             queen,
+            equation,
             minPlayers: Number(game.min_players ?? 1),
             maxPlayers: Number(game.max_players ?? 8),
             timerSeconds: Number(game.timer_seconds ?? 60),

@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import type { QueenSettings } from "@/lib/types";
+import { EquationFields } from "./equation-editor";
+import type { EquationSettings, QueenSettings } from "@/lib/types";
 
 export type LibraryFields = {
   id: string;
@@ -18,6 +19,7 @@ export type LibraryFields = {
   materials: string;
   safety: string;
   queen: QueenSettings | null;
+  equation: EquationSettings | null;
   minPlayers: number;
   maxPlayers: number;
   timerSeconds: number;
@@ -101,6 +103,7 @@ export function LibraryEditor({ game }: { game: LibraryFields }) {
         </>
       ) : null}
       {form.queen ? <QueenFields form={form} setForm={setForm} /> : null}
+      {form.equation ? <EquationFields equation={form.equation} onChange={(equation) => { setSaved(false); setForm({ ...form, equation }); }} /> : null}
       <div className="dock">
         <button className="btn" type="submit">Save</button>
       </div>

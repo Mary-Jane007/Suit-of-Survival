@@ -29,6 +29,7 @@ const SECRET_KEYS = new Set([
   "wolf",
   "fragments",
   "hint",
+  "equation",
 ]);
 
 export function publicDefinition(definition: GameDefinition) {

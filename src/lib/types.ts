@@ -31,6 +31,7 @@ export const FORMATS = [
   "word_chain",
   "unanimous",
   "queens_touch",
+  "perfect_equation",
 ] as const;
 export type Format = (typeof FORMATS)[number];
 
@@ -105,6 +106,60 @@ export type GameDefinition = {
   safety?: string;
   needsActor?: boolean;
   queen?: QueenSettings;
+  equation?: EquationSettings;
+};
+
+export type EquationPart = { prompt: string; accepted: string[] };
+export type EquationPuzzle = { prompt: string; accepted: string[]; reveal: string };
+export type EquationVariant = {
+  condition: string;
+  accepted: string[];
+  explainAccepted: string[];
+  parts: string[][];
+  puzzles: EquationPuzzle[];
+  code: string;
+  explanation: string;
+};
+export type EquationAbility = { id: string; name: string; announcement: string; enabled: boolean };
+export type EquationRound = {
+  id: string;
+  name: string;
+  difficulty: string;
+  prompt: string;
+  explanation: string;
+  seconds: number;
+  points: number;
+  explanationPoints: number;
+  attempts: number;
+  kind: "number" | "text" | "choice" | "parts" | "code";
+  options: { id: string; label: string }[];
+  accepted: string[];
+  askExplanation: boolean;
+  gradeExplanation: "auto" | "manual";
+  explainAccepted: string[];
+  parts: EquationPart[];
+  puzzles: EquationPuzzle[];
+  code: string;
+  variant: EquationVariant;
+};
+export type EquationSettings = {
+  rounds: EquationRound[];
+  completionBonus: number;
+  allowedMistakes: number;
+  eliminate: boolean;
+  correction: boolean;
+  winMode: "highest" | "complete" | "minimum" | "both";
+  minimumScore: number;
+  abilities: EquationAbility[];
+  dialogue: {
+    registration: string;
+    intro: string;
+    round5: string;
+    ability: string;
+    final: string;
+    success: string;
+    failure: string;
+  };
 };
 
 export type QueenSettings = {

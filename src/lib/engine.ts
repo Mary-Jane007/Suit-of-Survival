@@ -1,4 +1,5 @@
 import { acceptedFor, answerIsRight, answerMatches } from "./answers";
+import { equationHost, equationSubmit, equationTick, equationView, initEquation } from "./equation";
 import { initQueen, queenHost, queenSubmit, queenTick, queenView } from "./queen";
 import type {
   CardName,
@@ -28,6 +29,13 @@ export type SubmitPayload = {
   suit?: string;
   tap?: boolean;
   cardId?: string;
+  parts?: string[];
+  puzzles?: string[];
+  code?: string;
+  explanation?: string;
+  puzzleIndex?: number;
+  puzzleText?: string;
+  lock?: boolean;
 };
 
 type EngineResult = { ok: true; runtime: Runtime } | { ok: false; error: string; runtime: Runtime };
@@ -243,6 +251,7 @@ export function createRuntime(
     rt.deadline = null;
     initQueen(rt, rand);
   }
+  if (format === "perfect_equation") initEquation(rt);
   return rt;
 }
 
@@ -533,6 +542,10 @@ export function tick(runtime: Runtime, now: number): Runtime {
     queenTick(rt, now);
     return rt;
   }
+  if (rt.format === "perfect_equation") {
+    equationTick(rt, now);
+    return rt;
+  }
   if (rt.phase === "feedback") {
     const until = Number(rt.extra.feedbackUntil ?? 0);
     if (now >= until) openNextRound(rt, now);
@@ -696,6 +709,8 @@ function applySubmit(rt: Runtime, player: PlayerRef, payload: SubmitPayload, now
       return foreheadSubmit(rt, player, payload);
     case "queens_touch":
       return queenSubmit(rt, player, payload, now);
+    case "perfect_equation":
+      return equationSubmit(rt, player, payload, now);
     default:
       return "This game format is not playable yet.";
   }
@@ -1013,12 +1028,17 @@ export function hostAct(
   }
   if (action.type === "skip") {
     if (rt.format === "queens_touch") queenHost(rt, "skip", action.now);
+    else if (rt.format === "perfect_equation") equationHost(rt, "skip", action.now);
     else resolveStandard(rt, action.now);
     return { ok: true, runtime: rt };
   }
   if (action.type === "end") {
     if (rt.format === "queens_touch") {
       queenHost(rt, "end", Date.now());
+      return { ok: true, runtime: rt };
+    }
+    if (rt.format === "perfect_equation") {
+      equationHost(rt, "end", Date.now());
       return { ok: true, runtime: rt };
     }
     for (const player of activePlayers(rt)) {
@@ -1065,6 +1085,7 @@ function revealedPieces(rt: Runtime, now: number) {
 
 export function view(runtime: Runtime, userId: string | null, isHost: boolean, now: number, revealQueen = true): PlayView {
   if (runtime.format === "queens_touch") return queenView(runtime, userId, isHost, now, revealQueen);
+  if (runtime.format === "perfect_equation") return equationView(runtime, userId, isHost, now, revealQueen);
   const rt = runtime;
   const active = activePlayers(rt);
   const current = rt.submissions[String(rt.round)] ?? {};

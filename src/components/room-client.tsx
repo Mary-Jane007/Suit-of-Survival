@@ -312,7 +312,7 @@ function Screen({ room, flipped, host, send }: { room: Room; flipped: boolean; h
   const phase = room.session.phase;
   return (
     <>
-    <section className="stage-layout">
+    <section className={`stage-layout${room.play?.format === "perfect_equation" ? " equation-stage" : ""}`}>
       <div>{room.card ? <DrawnCard card={room.card} flipped={flipped || phase !== "detected"} /> : <CardFace suit="spades" rank="?" flipped={false} />}</div>
       <div className="announce">
         <div className="kicker">{room.announcement?.kicker || "ARENA"}</div>
@@ -327,6 +327,9 @@ function Screen({ room, flipped, host, send }: { room: Room; flipped: boolean; h
             <p>{room.play.prompt}</p>
             <p className="meta">{room.play.subprompt} · Round {room.play.round}/{room.play.rounds}</p>
             <Board board={room.play.board} />
+            {room.play.board?.canShift ? (
+              <button className="ghost" onClick={() => send({ type: "equation", command: "shift", abilityId: String((room.play?.board?.abilities as { id: string }[] | undefined)?.[0]?.id ?? "") })}>The variable has changed</button>
+            ) : null}
             {room.play.hint ? <p>Hint: {room.play.hint}</p> : null}
             {room.play.revealed ? <p>Revealed: {room.play.revealed}</p> : null}
             {room.play.feedback ? <p>{room.play.feedback}</p> : null}
@@ -396,13 +399,16 @@ function Phone(props: {
           <button className="ghost" onClick={() => send({ type: "betray", flag: true })}>Betray — break it</button>
         </div>
       ) : null}
-      {phase === "playing" && room.play?.board?.role === "queen" ? (
+      {phase === "playing" && room.play?.format === "perfect_equation" ? (
+        <EquationPanel play={room.play} send={send} />
+      ) : null}
+      {phase === "playing" && room.play?.format !== "perfect_equation" && room.play?.board?.role === "queen" ? (
         <>
           <p>{room.play.prompt}</p>
           <QueenPanel board={room.play.board} send={send} />
         </>
       ) : null}
-      {phase === "playing" && room.play && room.play.board?.role !== "queen" ? <PlayForm {...props} /> : null}
+      {phase === "playing" && room.play && room.play.format !== "perfect_equation" && room.play.board?.role !== "queen" ? <PlayForm {...props} /> : null}
       {phase === "results" && room.result ? <Results result={room.result} /> : null}
       {phase !== "results" ? <Roster room={room} /> : null}
       {room.session.playStyle === "hands" && (phase === "lobby" || phase === "results") ? (
@@ -665,8 +671,125 @@ function QueenPanel({ board, send }: { board: Record<string, unknown>; send: (bo
   );
 }
 
+function EquationPanel({ play, send }: { play: NonNullable<Room["play"]>; send: (body: Record<string, unknown>) => void }) {
+  const board = play.board ?? {};
+  const [text, setText] = useState("");
+  const [choice, setChoice] = useState("");
+  const [explanation, setExplanation] = useState("");
+  const [code, setCode] = useState("");
+  const [parts, setParts] = useState<string[]>([]);
+  const [puzzles, setPuzzles] = useState<string[]>([]);
+  const partPrompts = Array.isArray(board.parts) ? board.parts.map(String) : [];
+  const puzzleRows = Array.isArray(board.puzzles) ? board.puzzles as { prompt?: string; reveal?: string }[] : [];
+  const options = Array.isArray(play.input.options) ? play.input.options as { id: string; label: string }[] : [];
+  const scores = Array.isArray(board.scores) ? board.scores as { name: string; score: number }[] : [];
+  const progress = Array.isArray(board.progress) ? board.progress as { name: string; done: boolean }[] : [];
+  const results = Array.isArray(board.roundResult) ? board.roundResult as { name: string; correct: boolean }[] : [];
+  const grades = Array.isArray(board.grades) ? board.grades as { id: string; name: string; text: string }[] : [];
+  const abilities = Array.isArray(board.abilities) ? board.abilities as { id: string; name: string }[] : [];
+  const waiting = String(play.input.kind) === "wait";
+
+  useEffect(() => {
+    setText("");
+    setChoice("");
+    setExplanation("");
+    setCode("");
+    setParts(partPrompts.map(() => ""));
+    setPuzzles(puzzleRows.map(() => ""));
+  }, [play.round, play.prompt]);
+
+  function submitAnswer() {
+    send({
+      type: "submit",
+      payload: {
+        text: text || choice,
+        choice: choice || undefined,
+        parts,
+        code,
+        explanation,
+        lock: true,
+      },
+    });
+  }
+
+  return (
+    <div className="stack equation-phone">
+      <p className="kicker">{String(board.roundName ?? "Equation")} · {String(board.difficulty ?? "")}</p>
+      <p>{play.prompt}</p>
+      {play.subprompt ? <p className="meta">{play.subprompt} · Score {String(board.score ?? 0)}</p> : null}
+      {board.condition ? <p className="equation-condition">{String(board.condition)}</p> : null}
+      {options.length && !waiting ? (
+        <div className="choices">
+          {options.map((option) => (
+            <button key={option.id} className={choice === option.id ? "btn" : "ghost"} type="button" onClick={() => setChoice(option.id)}>{option.label}</button>
+          ))}
+        </div>
+      ) : null}
+      {partPrompts.length && !waiting ? partPrompts.map((prompt, index) => (
+        <label key={prompt}> {prompt}
+          <input value={parts[index] ?? ""} onChange={(event) => setParts(parts.map((part, partIndex) => partIndex === index ? event.target.value : part))} />
+        </label>
+      )) : null}
+      {puzzleRows.length ? puzzleRows.map((puzzle, index) => (
+        <div key={puzzle.prompt ?? index} className="panel">
+          <p>{puzzle.prompt}</p>
+          {puzzle.reveal ? <p className="kicker">Your digit: {puzzle.reveal}</p> : null}
+          {!waiting ? (
+            <button className="ghost" type="button" onClick={() => send({ type: "submit", payload: { puzzleIndex: index, puzzleText: puzzles[index] ?? "" } })}>Check this piece</button>
+          ) : null}
+          {!waiting ? <input value={puzzles[index] ?? ""} onChange={(event) => setPuzzles(puzzles.map((piece, pieceIndex) => pieceIndex === index ? event.target.value : piece))} placeholder="This piece" /> : null}
+        </div>
+      )) : null}
+      {board.code && !waiting ? <label>Four-digit code<input value={code} onChange={(event) => setCode(event.target.value)} inputMode="numeric" maxLength={8} /></label> : null}
+      {!waiting && !options.length && !partPrompts.length && !puzzleRows.length ? (
+        <label>Your answer<textarea value={text} onChange={(event) => setText(event.target.value)} placeholder="Write the answer" /></label>
+      ) : null}
+      {board.askExplanation && !waiting ? (
+        <label>Why?<textarea value={explanation} onChange={(event) => setExplanation(event.target.value)} placeholder="A short reason, if you have one" /></label>
+      ) : null}
+      {!waiting ? <button className="btn" type="button" onClick={() => submitAnswer()}>Lock answer</button> : <p className="meta">{String(play.input.message || board.yourNote || "Answer locked.")}</p>}
+      {board.reveal ? <p>Answer: {String(board.reveal)}</p> : null}
+      {board.explanation ? <p>{String(board.explanation)}</p> : null}
+      {results.length ? <p>{results.map((row) => `${row.name} ${row.correct ? "correct" : "not this time"}`).join(" · ")}</p> : null}
+      <p className="meta">{progress.map((row) => `${row.name} ${row.done ? "locked" : "thinking"}`).join(" · ")}</p>
+      {scores.length ? <p className="meta">{scores.map((row) => `${row.name} ${row.score}`).join(" · ")}</p> : null}
+      {grades.map((grade) => (
+        <div key={grade.id} className="panel">
+          <strong>{grade.name}</strong>
+          <p>{grade.text}</p>
+          <button className="ghost" type="button" onClick={() => send({ type: "equation", command: "grade", playerId: grade.id, correct: true })}>Explanation counts</button>
+          <button className="ghost" type="button" onClick={() => send({ type: "equation", command: "grade", playerId: grade.id, correct: false })}>No bonus</button>
+        </div>
+      ))}
+      {board.canShift ? abilities.map((ability) => (
+        <button key={ability.id} className="ghost" type="button" onClick={() => send({ type: "equation", command: "shift", abilityId: ability.id })}>{ability.name}</button>
+      )) : null}
+    </div>
+  );
+}
+
 function Board({ board }: { board: Record<string, unknown> | null }) {
   if (!board) return null;
+  if (board.game === "perfect_equation") {
+    const progress = Array.isArray(board.progress) ? board.progress as { name: string; done: boolean }[] : [];
+    const scores = Array.isArray(board.scores) ? board.scores as { name: string; score: number }[] : [];
+    const results = Array.isArray(board.roundResult) ? board.roundResult as { name: string; correct: boolean }[] : [];
+    return (
+      <div className="stack equation-board">
+        <p className="equation-mark" aria-hidden="true">∑  π  ≠  √  ∞</p>
+        <p className="kicker">{String(board.roundName ?? "")} · {String(board.difficulty ?? "")}</p>
+        {board.condition ? <p className="equation-condition">{String(board.condition)}</p> : null}
+        {Array.isArray(board.options) ? (board.options as { label: string }[]).map((option) => <p key={option.label}>{option.label}</p>) : null}
+        {Array.isArray(board.puzzles) ? (board.puzzles as { prompt?: string }[]).map((puzzle) => <p key={puzzle.prompt}>{puzzle.prompt}</p>) : null}
+        <p className="meta">{String(board.answered ?? 0)} of {String(board.players ?? 0)} locked</p>
+        {progress.length ? <p>{progress.map((row) => `${row.name} ${row.done ? "locked" : "open"}`).join(" · ")}</p> : null}
+        {results.length ? <p>{results.map((row) => `${row.name} ${row.correct ? "correct" : "not this time"}`).join(" · ")}</p> : null}
+        {board.reveal ? <p>Answer: {String(board.reveal)}</p> : null}
+        {board.explanation ? <p>{String(board.explanation)}</p> : null}
+        {scores.length ? <p className="meta">{scores.map((row) => `${row.name} ${row.score}`).join(" · ")}</p> : null}
+      </div>
+    );
+  }
   if (board.game === "queens_touch") {
     const movement = Array.isArray(board.movement) ? board.movement.filter((line) => typeof line === "string") : [];
     return (
@@ -761,8 +884,12 @@ function HostDock({ room, send }: { room: Room; send: (body: Record<string, unkn
           <button className="ghost" onClick={() => send({ type: room.session.paused ? "resume" : "pause" })}>{room.session.paused ? "Resume" : "Pause"}</button>
           <button className="ghost" onClick={() => send({ type: "extend", seconds: 30 })}>+30s</button>
           <button className="ghost" onClick={() => send({ type: "shorten", seconds: 15 })}>−15s</button>
-          <button className="ghost" onClick={() => send({ type: "hint" })}>Hint</button>
-          <button className="ghost" onClick={() => send({ type: "reveal" })}>Reveal</button>
+          {room.play?.format === "perfect_equation" ? null : (
+            <>
+              <button className="ghost" onClick={() => send({ type: "hint" })}>Hint</button>
+              <button className="ghost" onClick={() => send({ type: "reveal" })}>Reveal</button>
+            </>
+          )}
           <button className="ghost" onClick={() => send({ type: "skip" })}>Skip round</button>
           <button className="ghost hot" onClick={() => send({ type: "end" })}>End challenge</button>
         </>
